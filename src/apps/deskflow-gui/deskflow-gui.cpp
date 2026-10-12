@@ -32,7 +32,7 @@
 #include <QLoggingCategory>
 #endif
 
-#if !defined(Q_OS_MAC) && !defined(Q_OS_WIN)
+#if !defined(Q_OS_MACOS) && !defined(Q_OS_WIN)
 #include "platform/XDGPortalRegistry.h"
 #endif
 
@@ -51,8 +51,9 @@ int main(int argc, char *argv[])
   QLoggingCategory::setFilterRules(QStringLiteral("*.debug=true\nqt.*=false"));
 #endif
 
-#if !defined(Q_OS_MAC) && !defined(Q_OS_WIN)
-  deskflow::platform::setAppId();
+#if !defined(Q_OS_MACOS) && !defined(Q_OS_WIN)
+  if (QT_VERSION < QT_VERSION_CHECK(6, 10, 0))
+    deskflow::platform::setAppId();
 #endif
 
   QCoreApplication::setApplicationName(kAppName);

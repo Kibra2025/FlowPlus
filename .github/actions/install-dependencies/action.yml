@@ -1,3 +1,4 @@
+# SPDX-FileCopyrightText: (C) 2026 Deskflow Developers
 # SPDX-FileCopyrightText: (C) 2024 - 2026 Chris Rizzitello <sithlord48@gmail.com>
 # SPDX-License-Identifier: MIT
 
@@ -30,24 +31,25 @@ runs:
       if: ${{ runner.os != 'Windows' }}
       run: |
           if [ "$RUNNER_OS" == "macOS" ]; then
-            brew install openssl doxygen --quiet
+            brew install openssl --quiet
           elif [ "$RUNNER_OS" == "Linux" ]; then
             if [ ${{inputs.like}} == "debian" ]; then
               apt update -qqq > /dev/null
               apt install -qqq cmake build-essential ninja-build \
-                xorg-dev libx11-dev libxtst-dev libssl-dev \
-                libxkbfile-dev qt6-base-dev qt6-tools-dev libxkbcommon-dev \
-                libei-dev libportal-dev help2man doxygen -y >/dev/null
+                xorg-dev libx11-dev libxtst-dev libssl-dev libxkbfile-dev \
+                qt6-base-dev qt6-tools-dev libxkbregistry-dev libxkbcommon-dev \
+                libei-dev libportal-dev help2man -y >/dev/null
             elif [ ${{inputs.like}} == "fedora" ]; then
+              dnf config-manager setopt fedora-cisco-openh264.enabled=0
               dnf install -y cmake make ninja-build gcc-c++ rpm-build openssl-devel \
                 libXtst-devel libxkbfile-devel qt6-qtbase-devel qt6-qttools-devel libxkbcommon-x11-devel \
-                libei-devel libxkbcommon-devel libportal-devel help2man doxygen libXinerama-devel libXrandr-devel
+                libei-devel libxkbcommon-devel libportal-devel help2man libXinerama-devel libXrandr-devel
             elif [ ${{inputs.like}} == "suse" ]; then
               zypper refresh
               zypper install -y --force-resolution \
                 cmake make ninja gcc-c++ rpm-build libopenssl-devel \
                 libXtst-devel libxkbfile-devel qt6-base-devel qt6-tools-devel \
-                qt6-linguist-devel doxygen libxkbcommon-devel libxkbcommon-x11-devel \
+                qt6-linguist-devel libxkbcommon-devel libxkbcommon-x11-devel libxkbregistry-devel \
                 libei-devel libportal-devel help2man libXinerama-devel libXrandr-devel
             elif [ ${{ inputs.like }} == "arch" ]; then
               pacman -Syu --noconfirm base-devel cmake ninja \
@@ -70,6 +72,7 @@ runs:
         version: ${{inputs.qt-version}}
         cache: true
         cache-key-prefix: ${{matrix.target.os}}-${{inputs.qt-version}}
+        aqtsource: git+https://github.com/miurahr/aqtinstall.git@16db45a70b5905ad596941b223469bc86a56901e
 
     - name: Build and cache vcpkg
       if: ${{ runner.os == 'Windows' }}
@@ -81,22 +84,6 @@ runs:
         triplet: ${{inputs.vcpkg-triplet}}
         token: ${{ github.token }}
         revision: master
-
-    - name: Cache Chocolatey
-      id: cache-choco
-      if: (runner.os == 'Windows')
-      uses: actions/cache@v5
-      with:
-        path: |
-            C:/ProgramData/chocolatey/bin/
-            C:/ProgramData/chocolatey/lib/doxygen.install
-            C:/Program*/doxygen/
-        key: cache-chocolatey${{ matrix.config.arch }}-doxygen
-
-    - name: Install doxygen (windows)
-      if: ((runner.os == 'Windows') && (steps.cache-choco.outputs.cache-hit != 'true'))
-      shell: bash
-      run: choco install doxygen.install
 
     - name: Install Wix
       if: ${{ runner.os == 'Windows' }}

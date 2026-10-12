@@ -16,6 +16,7 @@
 #include "dialogs/AboutDialog.h"
 #include "dialogs/ClientConfigDialog.h"
 #include "dialogs/FingerprintDialog.h"
+#include "dialogs/HelpDialog.h"
 #include "dialogs/ServerConfigDialog.h"
 #include "dialogs/SettingsDialog.h"
 
@@ -69,8 +70,6 @@ MainWindow::MainWindow()
       m_menuView{new QMenu(this)},
       m_menuHelp{new QMenu(this)},
       m_actionAbout{new QAction(this)},
-      m_actionClearSettings{new QAction(this)},
-      m_actionReportBug{new QAction(this)},
       m_actionMinimize{new QAction(this)},
       m_actionQuit{new QAction(this)},
       m_actionTrayQuit{new QAction(this)},
@@ -79,6 +78,7 @@ MainWindow::MainWindow()
       m_actionStartCore{new QAction(this)},
       m_actionRestartCore{new QAction(this)},
       m_actionStopCore{new QAction(this)},
+      m_actionShowHelp{new QAction(this)},
       m_networkMonitor{new NetworkMonitor(this)}
 {
   ui->setupUi(this);
@@ -105,11 +105,9 @@ MainWindow::MainWindow()
   m_actionTrayQuit->setIcon(QIcon::fromTheme("application-exit"));
   m_actionTrayQuit->setMenuRole(QAction::NoRole);
 
-  m_actionClearSettings->setIcon(QIcon::fromTheme(QStringLiteral("edit-clear-all")));
-  m_actionClearSettings->setMenuRole(QAction::NoRole);
-
   m_actionSettings->setIcon(QIcon::fromTheme(QStringLiteral("configure")));
   m_actionSettings->setMenuRole(QAction::PreferencesRole);
+  m_actionSettings->setShortcut(QKeySequence::Preferences);
 
   m_actionStartCore->setIcon(QIcon::fromTheme(QStringLiteral("system-run")));
   m_actionStartCore->setMenuRole(QAction::NoRole);
@@ -121,8 +119,9 @@ MainWindow::MainWindow()
   m_actionStopCore->setIcon(QIcon::fromTheme(QIcon::ThemeIcon::ProcessStop));
   m_actionStopCore->setMenuRole(QAction::NoRole);
 
-  m_actionReportBug->setIcon(QIcon::fromTheme(QStringLiteral("tools-report-bug")));
-  m_actionReportBug->setMenuRole(QAction::NoRole);
+  m_actionShowHelp->setIcon(QIcon::fromTheme(QStringLiteral("question")));
+  m_actionShowHelp->setMenuRole(QAction::NoRole);
+  m_actionShowHelp->setShortcut(QKeySequence::HelpContents);
 
   // Setup the Instance Checking
   // In case of a previous crash remove first
@@ -134,7 +133,8 @@ MainWindow::MainWindow()
   updateText();
   connectSlots();
   setupTrayIcon();
-  updateScreenName();
+  updateComputerName();
+  setHelpFilePath();
 
   qDebug().noquote() << "active settings path:" << Settings::settingsPath();
 
@@ -157,6 +157,11 @@ MainWindow::MainWindow()
   applyConfig();
   m_statusBar->setSecurityIcon(TlsUtility::isEnabled());
   restoreWindow();
+
+#ifdef Q_OS_MACOS
+  // Route native quits (Cmd+Q / Apple menu Quit / Dock "Quit") to the usual close-to-tray decision instead.
+  installQuitHandler([this] { return !maybeHideToTray(); });
+#endif
 }
 MainWindow::~MainWindow()
 {
@@ -252,8 +257,6 @@ void MainWindow::connectSlots()
   connect(&m_coreProcess, &CoreProcess::securityLevelChanged, m_statusBar, &StatusBar::setSecurityLevel);
 
   connect(m_actionAbout, &QAction::triggered, this, &MainWindow::openAboutDialog);
-  connect(m_actionClearSettings, &QAction::triggered, this, &MainWindow::clearSettings);
-  connect(m_actionReportBug, &QAction::triggered, this, &MainWindow::openHelpUrl);
   connect(m_actionMinimize, &QAction::triggered, this, &MainWindow::hide);
 
   connect(m_actionQuit, &QAction::triggered, this, &MainWindow::close);
@@ -263,6 +266,7 @@ void MainWindow::connectSlots()
   connect(m_actionStartCore, &QAction::triggered, this, &MainWindow::startCore);
   connect(m_actionRestartCore, &QAction::triggered, this, &MainWindow::resetCore);
   connect(m_actionStopCore, &QAction::triggered, this, &MainWindow::stopCore);
+  connect(m_actionShowHelp, &QAction::triggered, this, &MainWindow::showHelpViewer);
 
   // Mac os tray will only show a menu
   if (!deskflow::platform::isMac())
@@ -348,7 +352,7 @@ void MainWindow::settingsChanged(const QString &key)
   }
 
   if (key == Settings::Core::ComputerName)
-    updateScreenName();
+    updateComputerName();
 
   if ((key == Settings::Security::Certificate) || (key == Settings::Security::KeySize) ||
       (key == Settings::Security::TlsEnabled) || (key == Settings::Security::CheckPeers)) {
@@ -422,10 +426,7 @@ void MainWindow::stopCore()
 
 void MainWindow::clearSettings()
 {
-  if (!messages::showClearSettings(this)) {
-    qDebug() << "clear settings cancelled";
-    return;
-  }
+  qDebug() << "clearing settings";
 
   m_networkMonitor->stopMonitoring();
 
@@ -460,11 +461,6 @@ void MainWindow::openAboutDialog()
   about.exec();
 }
 
-void MainWindow::openHelpUrl() const
-{
-  QDesktopServices::openUrl(QUrl(kUrlHelp));
-}
-
 void MainWindow::openGetNewVersionUrl() const
 {
   QDesktopServices::openUrl(QUrl(kUrlDownload));
@@ -474,8 +470,10 @@ void MainWindow::openSettings()
 {
   auto dialog = SettingsDialog(this, m_serverConfig);
 
+  connect(&dialog, &SettingsDialog::requestRemoveAllSettings, this, &MainWindow::clearSettings, Qt::UniqueConnection);
   if (dialog.exec() == QDialog::Accepted) {
     Settings::save();
+    disconnect(&dialog, &SettingsDialog::requestRemoveAllSettings, nullptr, nullptr);
 
     applyConfig();
 
@@ -672,9 +670,7 @@ void MainWindow::createMenuBar()
   m_menuView->addAction(m_logDock->toggleViewAction());
 
   m_menuHelp->addAction(m_actionAbout);
-  m_menuHelp->addAction(m_actionReportBug);
-  m_menuHelp->addSeparator();
-  m_menuHelp->addAction(m_actionClearSettings);
+  m_menuHelp->addAction(m_actionShowHelp);
 
   auto menuBar = new QMenuBar(this);
   menuBar->addMenu(m_menuFile);
@@ -782,7 +778,7 @@ void MainWindow::handleUnrecognisedClient(const QString &clientName)
   if (Settings::value(Settings::Server::ExternalConfig).toBool())
     return;
 
-  if (m_serverConfig.isFull() || m_serverConfig.screenExists(clientName))
+  if (m_serverConfig.isFull() || m_serverConfig.computerExists(clientName))
     return;
 
   m_newClientPromptShowing = true;
@@ -890,16 +886,25 @@ void MainWindow::handlePeerFingerprint(const QString &fingerprint)
   }
 }
 
+bool MainWindow::maybeHideToTray()
+{
+  if (!Settings::value(Settings::Gui::CloseToTray).toBool()) {
+    return false;
+  }
+
+  if (Settings::value(Settings::Gui::CloseReminder).toBool()) {
+    messages::showCloseReminder(this);
+    Settings::setValue(Settings::Gui::CloseReminder, false);
+  }
+  Settings::setValue(Settings::Gui::WindowGeometry, geometry());
+  qDebug() << "hiding to tray";
+  hide();
+  return true;
+}
+
 void MainWindow::closeEvent(QCloseEvent *event)
 {
-  if (Settings::value(Settings::Gui::CloseToTray).toBool() && event->spontaneous()) {
-    if (Settings::value(Settings::Gui::CloseReminder).toBool()) {
-      messages::showCloseReminder(this);
-      Settings::setValue(Settings::Gui::CloseReminder, false);
-    }
-    Settings::setValue(Settings::Gui::WindowGeometry, geometry());
-    qDebug() << "hiding to tray";
-    hide();
+  if (event->spontaneous() && maybeHideToTray()) {
     event->ignore();
     return;
   }
@@ -1049,8 +1054,6 @@ void MainWindow::updateText()
   m_menuView->setTitle(tr("&View"));
   m_menuHelp->setTitle(tr("&Help"));
 
-  m_actionClearSettings->setText(tr("Clear settings"));
-  m_actionReportBug->setText(tr("Report a Bug"));
   m_actionMinimize->setText(tr("&Minimize to tray"));
   m_actionQuit->setText(tr("&Quit"));
   m_actionTrayQuit->setText(tr("&Quit"));
@@ -1062,6 +1065,8 @@ void MainWindow::updateText()
   m_actionStopCore->setText(tr("S&top"));
   //: %1 will be the replaced with the appname
   m_actionAbout->setText(tr("About %1...").arg(kAppName));
+
+  m_actionShowHelp->setText(tr("View &Help"));
 
   //: start / restart core shortcut
   m_actionStartCore->setShortcut(QKeySequence(tr("Ctrl+S")));
@@ -1100,11 +1105,11 @@ void MainWindow::secureSocket(bool secureSocket)
   updateSecurityIcon(m_statusBar->securityIconVisible());
 }
 
-void MainWindow::updateScreenName()
+void MainWindow::updateComputerName()
 {
-  const auto screenName = Settings::value(Settings::Core::ComputerName).toString();
-  ui->lblComputerName->setText(screenName);
-  ui->lineEditName->setText(screenName);
+  const auto computerName = Settings::value(Settings::Core::ComputerName).toString();
+  ui->lblComputerName->setText(computerName);
+  ui->lineEditName->setText(computerName);
   m_serverConfig.updateServerName();
 }
 
@@ -1140,25 +1145,25 @@ void MainWindow::setHostName()
   toggleCanRunCore(canRunCore());
 
   QString text = ui->lineEditName->text();
-  const auto screenName = Settings::value(Settings::Core::ComputerName).toString();
+  const auto computerName = Settings::value(Settings::Core::ComputerName).toString();
 
-  if (text == screenName)
+  if (text == computerName)
     return;
 
   const bool isServer = ui->rbModeServer->isChecked();
-  bool existingScreen = false;
+  bool existingComputer = false;
   if (isServer)
-    existingScreen = serverConfig().screenExists(text);
+    existingComputer = serverConfig().computerExists(text);
 
-  if (!ui->lineEditName->hasAcceptableInput() || text.isEmpty() || existingScreen) {
+  if (!ui->lineEditName->hasAcceptableInput() || text.isEmpty() || existingComputer) {
     blockSignals(true);
-    ui->lineEditName->setText(screenName);
+    ui->lineEditName->setText(computerName);
     blockSignals(false);
 
-    const auto title = tr("Invalid Screen Name");
+    const auto title = tr("Invalid Computer Name");
     QString body;
-    if (existingScreen) {
-      body = tr("Screen name already exists");
+    if (existingComputer) {
+      body = tr("Computer name already exists");
     } else {
       body =
           tr("The name you have chosen is invalid.\n\n"
@@ -1280,6 +1285,39 @@ void MainWindow::updateIpLabel(const QStringList &addresses)
 void MainWindow::updateTimeoutDelay(int newDelay)
 {
   m_statusBar->setConnectionInterval(newDelay);
+}
+
+void MainWindow::setHelpFilePath()
+{
+  const QString appPath = QCoreApplication::applicationDirPath();
+  auto buildPath = QString("%1/../docs/HelpMain.md").arg(appPath);
+  auto installPath = QString("%1/../share/doc/%2/HelpMain.md").arg(appPath, kAppId);
+  if (deskflow::platform::isMac()) {
+    installPath = QString("%1/../Resources/docs/HelpMain.md").arg(appPath);
+    buildPath = QString("%1/../../../../docs/HelpMain.md").arg(appPath);
+  } else if (deskflow::platform::isWindows()) {
+    installPath = QString("%1/docs/HelpMain.md").arg(appPath);
+  }
+
+  buildPath = QDir::cleanPath(buildPath);
+  installPath = QDir::cleanPath(installPath);
+
+  if (QFile::exists(installPath))
+    m_helpPath = QUrl::fromLocalFile(installPath);
+  else if (QFile::exists(buildPath))
+    m_helpPath = QUrl::fromLocalFile(buildPath);
+  else
+    m_helpPath = kUrlWiki;
+}
+
+void MainWindow::showHelpViewer() const
+{
+  if (m_helpPath.isLocalFile()) {
+    HelpDialog dialogHelp(this->centralWidget(), m_helpPath);
+    dialogHelp.exec();
+  } else {
+    QDesktopServices::openUrl(m_helpPath);
+  }
 }
 
 bool MainWindow::canRunCore() const
