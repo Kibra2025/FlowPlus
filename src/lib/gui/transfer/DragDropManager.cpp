@@ -5,6 +5,7 @@
  */
 
 #include "DragDropManager.h"
+#include "TransferStorage.h"
 #include "TransferUtils.h"
 
 #include "common/Settings.h"
@@ -28,7 +29,6 @@
 #include <QPainter>
 #include <QScreen>
 #include <QStandardPaths>
-#include <QStorageInfo>
 #include <QUdpSocket>
 #include <QUrl>
 #include <QUuid>
@@ -628,13 +628,12 @@ void DragDropManager::acceptIncomingTransfer(bool nativeDrop, const QPoint &drop
     return;
   }
   qint64 total = 0;
-  if (!validateTransferManifest(m_incomingManifest, total) || !QDir().mkpath(m_localSend->downloadDirectory())) {
+  if (!validateTransferManifest(m_incomingManifest, total)) {
     cancelIncoming(tr("Could not prepare the download folder"));
     return;
   }
-  const QStorageInfo storage(m_localSend->downloadDirectory());
-  if (storage.isValid() && storage.bytesAvailable() >= 0 && total > storage.bytesAvailable()) {
-    cancelIncoming(tr("Not enough space to receive the files"));
+  if (!prepareTransferDirectory(m_localSend->downloadDirectory(), total)) {
+    cancelIncoming(tr("Could not prepare the download folder"));
     return;
   }
   m_incomingAccepted = true;

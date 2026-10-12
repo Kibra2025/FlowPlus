@@ -1509,10 +1509,6 @@ L&apos;abilitazione di questa impostazione disabiliterà l&apos;interfaccia graf
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Not enough space to receive the files</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Connecting…</source>
         <translation type="unfinished"></translation>
     </message>

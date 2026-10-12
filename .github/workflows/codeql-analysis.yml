@@ -30,7 +30,11 @@ jobs:
   codeql:
     runs-on: ubuntu-latest
     container: debian:trixie-slim
-    timeout-minutes: 20
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
 
     steps:
       - name: Install container dependencies
@@ -50,9 +54,19 @@ jobs:
         uses: github/codeql-action/init@v4
         with:
           languages: cpp
+          build-mode: manual
 
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v4
+      # The application is compiled for extraction. Tests run in CI separately;
+      # their post-build target must not interrupt the security analysis.
+      - name: Configure FlowPlus
+        run: >-
+          cmake -S . -B build/codeql -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DBUILD_TESTS=OFF
+          -DBUILD_INSTALLER=OFF
+
+      - name: Build FlowPlus for CodeQL
+        run: cmake --build build/codeql --parallel 2
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4

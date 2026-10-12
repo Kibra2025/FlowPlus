@@ -32,7 +32,7 @@ and REUSE. All tools, build trees and downloaded dependencies are ignored by Git
 | `TransferProtocolTests` | 17 passed | Binary routing, size limits and malformed numbered IPC |
 | `ProtocolUtilLimitsTests` | 5 passed | Actual protocol parser, embedded lengths and binary strings |
 | `TransferInteractionTests` | 25 passed | Shared filename/manifest/storage rules and overlay behavior |
-| `LocalSendServiceTests` | 22 passed | Actual HTTP service/sender, grants, replay, interruption, cancellation, collisions and fallback policy |
+| `LocalSendServiceTests` | 23 passed | Actual HTTP service/sender, grants, replay, interruption, cancellation, collisions, invalid destinations and fallback policy |
 | `VersionCheckerTests` | 14 passed | FlowPlus version response comparison |
 | Changed core/IPC/GUI translation units | Compiled | Includes routing, TLS socket, transfer coordinator/service/overlay and MainWindow; object compilation rather than a complete application link |
 | clang-format and `git diff --check` | Passed | Changed/new C++ files and working diff |
@@ -46,11 +46,51 @@ are in [TESTING.md](TESTING.md).
 
 ## Remaining verification
 
-The complete Windows application has not been built/linked with its supported
+The complete Windows application has not been built/linked locally with its supported
 MSVC toolchain here. No macOS application build, installer installation/signing,
 real two-device transfer, physical Explorer/Finder drag, mixed-DPI display test or
-native destination acceptance test was executed. The added Windows/macOS CI
-workflow has been prepared but not run on GitHub during this review.
+native destination acceptance test was executed.
+
+## CI regression follow-up
+
+GitHub runs for commit `8af819a` were inspected on 2026-10-12. The isolated
+Windows transfer suites passed; macOS failed five authorized reception cases.
+Their original output omitted the HTTP response. The shared destination check
+now probes actual directory writability and obtains Unix free space with
+`statvfs` on that directory, avoiding the reported volume-root read-only flag
+and treating unavailable capacity as unknown. This addresses a suspected macOS
+APFS storage-query issue, not a confirmed diagnosis. Failed prepare responses
+and sender failures now appear in test output; failed isolated CI jobs retain
+CTest diagnostics as artifacts.
+
+The complete CI also exposed an uninitialized logging singleton in the parser
+test, a deprecated Qt exception macro rejected by the macOS compiler, and Linux
+tests assuming incomplete temporary files always have directory entries. The
+parser fixture now initializes logging when built with the application, the
+exception assertion uses the supported macro, and interruption/cancellation
+tests wait for received-byte progress before verifying cleanup. Qt documents
+Linux unnamed temporary files in [QTemporaryFile](https://doc.qt.io/qt-6/qtemporaryfile.html).
+
+After these changes, all four isolated suites passed locally on Windows
+(7.03 seconds); the service suite reports 23 passing cases. REUSE and diff
+checks passed. The updated macOS/Linux/full application builds require a new
+commit and CI run; rerunning the old commit does not test these changes.
+
+The CodeQL screenshots also show the same parser crash and Linux temporary-file
+test failures interrupting its automatic build, plus missing API permissions.
+Its workflow now uses manual CMake/Ninja compilation of the application with
+`BUILD_TESTS=OFF` and `BUILD_INSTALLER=OFF`, leaving regression execution to the
+test/CI workflows. It requests `contents: read`, `actions: read` and
+`security-events: write` for the CodeQL job, as required for analysis upload.
+The workflow was checked locally; its extraction/upload still requires a new
+GitHub run. See [CodeQL Action documentation](https://github.com/github/codeql-action/blob/main/README.md).
+
+The FreeBSD job for the same commit stops at the deprecated Qt exception macro
+already replaced in the parser test. Both Flatpak architectures stop before
+building with AppStream `releases-info-missing`. The metadata now describes the
+current `1.26.0.9999` development snapshot dated 2026-10-12; it does not claim a
+stable FlowPlus release. XML structure/version checks passed locally. The full
+AppStream/Flatpak validator and FreeBSD build remain pending the new CI run.
 
 Received files reliably target the download folder at the implementation level.
 Gesture receipts also publish clipboard URLs. Windows desktop copies and optional

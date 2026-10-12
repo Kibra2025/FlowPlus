@@ -23,6 +23,7 @@ private Q_SLOTS:
   void unsolicitedUploadRejected();
   void authorizationMatchesManifestAndIsOneShot();
   void authorizationRequiresTheApprovedSourceAddress();
+  void invalidDestinationRejectedWithoutConsumingGrant();
   void binaryBatchPreservesExistingFileAndSeparatesSenderCompletion();
   void interruptedUploadRemovesTemporaryFiles();
   void cancellationRemovesEntireStagedBatch();

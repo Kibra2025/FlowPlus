@@ -1509,10 +1509,6 @@ Al habilitar esta opción, se deshabilitará la interfaz gráfica de usuario (GU
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Not enough space to receive the files</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Connecting…</source>
         <translation type="unfinished"></translation>
     </message>

@@ -10,6 +10,10 @@
 #include <QTest>
 #include <cstring>
 
+#ifndef NOLOGGING
+#include "base/Log.h"
+#endif
+
 class MemoryStream : public deskflow::IStream
 {
 public:
@@ -55,13 +59,18 @@ public:
 class ProtocolUtilLimitsTests : public QObject
 {
   Q_OBJECT
+private:
+#ifndef NOLOGGING
+  Log m_log;
+#endif
+
 private Q_SLOTS:
   void rejectsOversizedEmbeddedLengthBeforeReadingBody()
   {
     MemoryStream stream;
     stream.bytes = QByteArray("\x00\x10\x00\x01", 4) + "untouched";
     std::string output;
-    QVERIFY_EXCEPTION_THROWN(ProtocolUtil::readf(&stream, "%s", &output), BadClientException);
+    QVERIFY_THROWS_EXCEPTION(BadClientException, ProtocolUtil::readf(&stream, "%s", &output));
     QCOMPARE(stream.bytes, QByteArray("untouched"));
     QVERIFY(output.empty());
   }

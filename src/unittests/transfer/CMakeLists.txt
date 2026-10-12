@@ -44,6 +44,9 @@ target_link_libraries(TransferProtocolTests PRIVATE ${transfer_dependency} Qt6::
 add_test(NAME TransferProtocolTests COMMAND TransferProtocolTests -o -,txt)
 
 add_executable(ProtocolUtilLimitsTests ProtocolUtilLimitsTests.cpp)
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+  target_compile_definitions(ProtocolUtilLimitsTests PRIVATE NOLOGGING)
+endif()
 target_link_libraries(ProtocolUtilLimitsTests PRIVATE ${protocol_dependency} Qt6::Test)
 add_test(NAME ProtocolUtilLimitsTests COMMAND ProtocolUtilLimitsTests -o -,txt)
 

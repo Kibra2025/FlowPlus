@@ -5,6 +5,7 @@
  */
 
 #include "LocalSendService.h"
+#include "TransferStorage.h"
 
 #include <QDir>
 #include <QElapsedTimer>
@@ -15,7 +16,6 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QStandardPaths>
-#include <QStorageInfo>
 #include <QSysInfo>
 #include <QUrlQuery>
 #include <QUuid>
@@ -647,12 +647,7 @@ void LocalSendService::handleCompleteHttpRequest(QTcpSocket *socket, const QByte
       sendEmptyResponse(socket, 403, "Manifest Does Not Match Authorized Transfer");
       return;
     }
-    if (!QDir().mkpath(m_downloadDir)) {
-      sendEmptyResponse(socket, 507, "Insufficient Storage");
-      return;
-    }
-    const QStorageInfo storage(m_downloadDir);
-    if (storage.isValid() && storage.isReady() && (storage.isReadOnly() || total > storage.bytesAvailable())) {
+    if (!prepareTransferDirectory(m_downloadDir, total)) {
       sendEmptyResponse(socket, 507, "Insufficient Storage");
       return;
     }

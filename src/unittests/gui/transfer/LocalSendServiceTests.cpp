@@ -93,6 +93,7 @@ QJsonObject LocalSendServiceTests::prepare(const QString &transferId, const QJso
 {
   const auto response = request("/api/localsend/v2/prepare-upload", prepareBody(transferId, manifest));
   if (!response.startsWith("HTTP/1.1 200 ")) {
+    qWarning().noquote() << "prepare-upload response:" << response;
     return {};
   }
   return QJsonDocument::fromJson(responseBody(response)).object();
@@ -172,6 +173,9 @@ void LocalSendServiceTests::binaryBatchPreservesExistingFileAndSeparatesSenderCo
   QSignalSpy senderReceived(&sender, &LocalSendService::transferCompleted);
   QSignalSpy completed(m_service.get(), &LocalSendService::transferCompleted);
   QSignalSpy failed(&sender, &LocalSendService::transferFailed);
+  connect(&sender, &LocalSendService::transferFailed, this, [](const QString &reason) {
+    qWarning().noquote() << "Sender transfer failure:" << reason;
+  });
   sender.sendFiles(
       QStringLiteral("127.0.0.1"), m_service->serverPort(), {sourcePath, emptyPath}, QPoint(999, 888), kTransferId
   );
@@ -198,6 +202,27 @@ void LocalSendServiceTests::authorizationRequiresTheApprovedSourceAddress()
   QVERIFY(downloads().isEmpty());
 }
 
+void LocalSendServiceTests::invalidDestinationRejectedWithoutConsumingGrant()
+{
+  const auto blockedPath = QDir(m_directory->path()).filePath(QStringLiteral("occupied"));
+  QFile occupied(blockedPath);
+  QVERIFY(occupied.open(QIODevice::WriteOnly));
+  QCOMPARE(occupied.write("existing content"), qint64(16));
+  occupied.close();
+  const QJsonArray manifest{fileMetadata(QStringLiteral("received.bin"), 3)};
+  QVERIFY(m_service->authorizeIncomingTransfer(QStringLiteral("127.0.0.1"), kTransferId, manifest, QPoint()));
+  m_service->setDownloadDirectory(blockedPath);
+  const auto response = request("/api/localsend/v2/prepare-upload", prepareBody(kTransferId, manifest));
+  QVERIFY2(response.startsWith("HTTP/1.1 507 "), response.constData());
+  m_service->setDownloadDirectory(m_directory->path());
+  const auto prepared = prepare(kTransferId, manifest);
+  QVERIFY(!prepared.isEmpty());
+  QCOMPARE(downloads(), QStringList{QStringLiteral("occupied")});
+  QVERIFY(request(uploadTarget(prepared, QStringLiteral("file_0")), "abc").startsWith("HTTP/1.1 200 "));
+  QVERIFY(occupied.open(QIODevice::ReadOnly));
+  QCOMPARE(occupied.readAll(), QByteArray("existing content"));
+}
+
 void LocalSendServiceTests::interruptedUploadRemovesTemporaryFiles()
 {
   const QJsonArray manifest{fileMetadata(QStringLiteral("partial.bin"), 10)};
@@ -206,6 +231,7 @@ void LocalSendServiceTests::interruptedUploadRemovesTemporaryFiles()
   QVERIFY(!prepared.isEmpty());
   QSignalSpy failures(m_service.get(), &LocalSendService::incomingTransferFailed);
   QSignalSpy completed(m_service.get(), &LocalSendService::transferCompleted);
+  QSignalSpy progress(m_service.get(), &LocalSendService::transferProgress);
   QTcpSocket socket;
   socket.connectToHost(QHostAddress::LocalHost, m_service->serverPort());
   QTRY_COMPARE(socket.state(), QAbstractSocket::ConnectedState);
@@ -213,11 +239,14 @@ void LocalSendServiceTests::interruptedUploadRemovesTemporaryFiles()
       "POST " + uploadTarget(prepared, QStringLiteral("file_0")) +
       " HTTP/1.1\r\nHost: localhost\r\nContent-Length: 10\r\n\r\nabc"
   );
-  QTRY_COMPARE(downloads().size(), 1);
+  // Linux may keep QTemporaryFile unnamed until the upload completes.
+  QTRY_VERIFY(!progress.isEmpty() && progress.last().at(1).toLongLong() == 3);
+  QCOMPARE(progress.last().at(0).toString(), QStringLiteral("partial.bin"));
+  QCOMPARE(progress.last().at(2).toLongLong(), qint64(10));
   socket.abort();
-  QTRY_VERIFY(downloads().isEmpty());
+  QTRY_COMPARE(failures.count(), 1);
+  QVERIFY(downloads().isEmpty());
   QCOMPARE(completed.count(), 0);
-  QCOMPARE(failures.count(), 1);
   QCOMPARE(failures.first().at(1).toString(), kTransferId);
   QVERIFY(request(uploadTarget(prepared, QStringLiteral("file_0")), QByteArray(10, 'x')).startsWith("HTTP/1.1 403 "));
 }
@@ -236,6 +265,7 @@ void LocalSendServiceTests::cancellationRemovesEntireStagedBatch()
   QCOMPARE(files.count(), 0);
   QCOMPARE(completed.count(), 0);
   QCOMPARE(downloads().size(), 1);
+  QSignalSpy progress(m_service.get(), &LocalSendService::transferProgress);
   QTcpSocket socket;
   socket.connectToHost(QHostAddress::LocalHost, m_service->serverPort());
   QTRY_COMPARE(socket.state(), QAbstractSocket::ConnectedState);
@@ -243,7 +273,9 @@ void LocalSendServiceTests::cancellationRemovesEntireStagedBatch()
       "POST " + uploadTarget(prepared, QStringLiteral("file_1")) +
       " HTTP/1.1\r\nHost: localhost\r\nContent-Length: 10\r\n\r\nabc"
   );
-  QTRY_COMPARE(downloads().size(), 2);
+  QTRY_VERIFY(!progress.isEmpty() && progress.last().at(1).toLongLong() == 3);
+  QCOMPARE(progress.last().at(0).toString(), QStringLiteral("second.bin"));
+  QCOMPARE(progress.last().at(2).toLongLong(), qint64(10));
   const auto cancelTarget =
       "/api/localsend/v2/cancel?sessionId=" + prepared.value(QStringLiteral("sessionId")).toString().toUtf8();
   QVERIFY(request(cancelTarget).startsWith("HTTP/1.1 200 "));

@@ -33,3 +33,11 @@ jobs:
         run: cmake --build build/transfer --config Release --parallel 4
       - name: Test
         run: ctest --test-dir build/transfer -C Release --output-on-failure
+      - name: Upload test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: transfer-test-logs-${{ matrix.os }}
+          path: build/transfer/Testing/Temporary/
+          if-no-files-found: ignore
+          retention-days: 7

@@ -21,4 +21,11 @@
   <categories><category>Utility</category></categories>
   <keywords><keyword>Keyboard</keyword><keyword>Mouse</keyword><keyword>Sharing</keyword><keyword>File transfer</keyword></keywords>
   <content_rating type="oars-1.1" />
+  <releases>
+    <release version="1.26.0.9999" date="2026-10-12" type="development">
+      <description>
+        <p>Development snapshot introducing the FlowPlus identity and experimental file transfers derived from Deskflow and inspired by the LocalSend protocol.</p>
+      </description>
+    </release>
+  </releases>
 </component>

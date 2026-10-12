@@ -125,6 +125,7 @@ add_library(${target} STATIC
   transfer/LocalSendService.cpp
   transfer/LocalSendService.h
   transfer/TransferUtils.h
+  transfer/TransferStorage.h
 )
 
 target_link_libraries(
