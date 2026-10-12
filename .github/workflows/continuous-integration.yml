@@ -273,16 +273,24 @@ jobs:
               cmake --build build --config Release -j8 --target package
             else
               cmake --build build --config Release -j8
+              packaged=false
               for i in $(seq 1 5); do
-                cmake --build build --config Release -j8 --target package 2>&1
-                if [ $? -eq 0 ]; then
+                # A conditional preserves retries under Bash's `-e` option.
+                if cmake --build build --config Release -j8 --target package 2>&1; then
                   echo "Package successful"
+                  packaged=true
                   break
                 else
                   echo "Package attempt $i failed"
-                  sleep 1
+                  if [ "$i" -lt 5 ]; then
+                    sleep 5
+                  fi
                 fi
               done
+              if [ "$packaged" != true ]; then
+                echo "DMG packaging failed after five attempts"
+                exit 1
+              fi
             fi
           else
             cmake --build build --config Release -j8

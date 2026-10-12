@@ -1,1 +1,6 @@
-{}
+{
+  "io.github.kibra2025.FlowPlus": [
+    "metainfo-missing-screenshots",
+    "appstream-screenshots-not-mirrored-in-ostree"
+  ]
+}

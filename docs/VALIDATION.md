@@ -92,6 +92,32 @@ current `1.26.0.9999` development snapshot dated 2026-10-12; it does not claim a
 stable FlowPlus release. XML structure/version checks passed locally. The full
 AppStream/Flatpak validator and FreeBSD build remain pending the new CI run.
 
+## CI confirmation and packaging follow-up
+
+The subsequent `34bb140` run confirmed passing isolated transfer suites on
+Windows/macOS, CodeQL, FreeBSD and 16 of 17 full application build jobs,
+including Windows x64/ARM64, macOS ARM64 and the Linux distributions.
+The remaining macOS Intel job built the application but failed packaging when
+`hdiutil` could not detach the temporary DMG. Its intended retry loop exited on
+the first failure because Bash runs with `-e`. The package command is now an
+`if` condition, with five bounded attempts and an explicit failure exit if all
+attempts fail. This enables the intended recovery from a transient detach
+failure; a persistent packaging failure will still fail CI.
+
+Both Flatpak architectures built and bundled successfully, then failed final
+Flathub lint for missing screenshots and their OSTree mirror. The existing CI
+exception file now lists only those two presentation checks for the FlowPlus
+app ID. It does not exempt runtime, dependency, permission or security checks.
+These are development packages from this repository, not a Flathub submission;
+capture and host actual FlowPlus screenshots, enable screenshot mirroring and
+remove these exceptions before a Flathub submission. The runtime-update notice
+for KDE 6.11 is a warning and did not cause these failures.
+
+The updated packaging configuration still requires a new CI run. Passing build
+jobs establish compilation and automated checks, not physical cross-device drag
+behavior. The previous local-only limitations above are superseded only where
+this section explicitly records GitHub CI confirmation.
+
 Received files reliably target the download folder at the implementation level.
 Gesture receipts also publish clipboard URLs. Windows desktop copies and optional
 legacy `WM_DROPFILES` delivery require manual validation; macOS Finder and modern
