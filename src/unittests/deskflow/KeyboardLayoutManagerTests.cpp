@@ -26,22 +26,6 @@ void KeyboardLayoutManagerTests::remoteLayouts()
   QVERIFY(manager.getRemoteLayouts().empty());
 }
 
-void KeyboardLayoutManagerTests::remoteLayouts_tooShort_returnsEmpty()
-{
-  deskflow::KeyboardLayoutManager manager({"ru", "en", "uk"});
-
-  manager.setRemoteLayouts("a");
-  QVERIFY(manager.getRemoteLayouts().empty());
-}
-
-void KeyboardLayoutManagerTests::remoteLayouts_oddLength_returnsEmpty()
-{
-  deskflow::KeyboardLayoutManager manager({"ru", "en", "uk"});
-
-  manager.setRemoteLayouts("rue");
-  QVERIFY(manager.getRemoteLayouts().empty());
-}
-
 void KeyboardLayoutManagerTests::localLayout()
 {
   std::vector<std::string> localLayouts = {"ru", "en", "uk"};

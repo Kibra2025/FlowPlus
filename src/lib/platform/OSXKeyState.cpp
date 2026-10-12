@@ -8,8 +8,8 @@
 #include "platform/OSXKeyState.h"
 #include "arch/Arch.h"
 #include "base/Log.h"
-#include "platform/OSXKeyLayoutResource.h"
 #include "platform/OSXMediaKeySupport.h"
+#include "platform/OSXUchrKeyResource.h"
 
 #include <Carbon/Carbon.h>
 #include <IOKit/hidsystem/IOHIDLib.h>
@@ -26,10 +26,6 @@ static const uint32_t s_controlVK = kVK_Control;
 static const uint32_t s_altVK = kVK_Option;
 static const uint32_t s_superVK = kVK_Command;
 static const uint32_t s_capsLockVK = kVK_CapsLock;
-static const uint32_t s_shiftRightVK = kVK_RightShift;
-static const uint32_t s_controlRightVK = kVK_RightControl;
-static const uint32_t s_altRightVK = kVK_RightOption;
-static const uint32_t s_superRightVK = kVK_RightCommand;
 static const uint32_t s_numLockVK = kVK_ANSI_KeypadClear; // 71
 
 static const uint32_t s_brightnessUp = 144;
@@ -76,10 +72,6 @@ static const KeyEntry s_controlKeys[] = {
     {kKeyF14, kVK_F14},
     {kKeyF15, kVK_F15},
     {kKeyF16, kVK_F16},
-    {kKeyF17, kVK_F17},
-    {kKeyF18, kVK_F18},
-    {kKeyF19, kVK_F19},
-    {kKeyF20, kVK_F20},
 
     {kKeyKP_0, kVK_ANSI_Keypad0},
     {kKeyKP_1, kVK_ANSI_Keypad1},
@@ -103,18 +95,18 @@ static const KeyEntry s_controlKeys[] = {
     // to map to.  also the enter key with numlock on is a modifier but i
     // don't know which.
 
-    // modifier keys.  map the left and right variants to their respective
-    // macOS virtual keys so the modifier side is preserved on the client.
+    // modifier keys.  OS X doesn't seem to support right handed versions
+    // of modifier keys so we map them to the left handed versions.
     {kKeyShift_L, s_shiftVK},
-    {kKeyShift_R, s_shiftRightVK},
+    {kKeyShift_R, s_shiftVK}, // 60
     {kKeyControl_L, s_controlVK},
-    {kKeyControl_R, s_controlRightVK},
+    {kKeyControl_R, s_controlVK}, // 62
     {kKeyAlt_L, s_altVK},
-    {kKeyAlt_R, s_altRightVK},
+    {kKeyAlt_R, s_altVK},
     {kKeySuper_L, s_superVK},
-    {kKeySuper_R, s_superRightVK},
+    {kKeySuper_R, s_superVK}, // 61
     {kKeyMeta_L, s_superVK},
-    {kKeyMeta_R, s_superRightVK},
+    {kKeyMeta_R, s_superVK}, // 61
 
     // toggle modifiers
     {kKeyNumLock, s_numLockVK},
@@ -176,37 +168,9 @@ io_connect_t getEventDriver()
 
 bool isModifier(uint8_t virtualKey)
 {
-  static std::set<uint8_t> modifiers{s_shiftVK,      s_controlVK,      s_altVK,      s_superVK,     s_capsLockVK,
-                                     s_shiftRightVK, s_controlRightVK, s_altRightVK, s_superRightVK};
+  static std::set<uint8_t> modifiers{s_shiftVK, s_superVK, s_altVK, s_controlVK, s_capsLockVK};
 
   return (modifiers.find(virtualKey) != modifiers.end());
-}
-
-AutoTISInputSourceRef copyKeyboardLayoutForKeyTranslation()
-{
-  std::lock_guard<std::mutex> lock(g_tisMutex);
-
-  AutoTISInputSourceRef keyboardLayout(TISCopyCurrentKeyboardLayoutInputSource(), CFRelease);
-  AutoTISInputSourceRef inputSource(TISCopyCurrentKeyboardInputSource(), CFRelease);
-
-  const bool inputSourceHasLayout =
-      inputSource && TISGetInputSourceProperty(inputSource.get(), kTISPropertyUnicodeKeyLayoutData) != nullptr;
-
-  CFBooleanRef isSelectCapable = nullptr;
-  if (keyboardLayout) {
-    isSelectCapable =
-        (CFBooleanRef)TISGetInputSourceProperty(keyboardLayout.get(), kTISPropertyInputSourceIsSelectCapable);
-  }
-  const bool keyboardLayoutIsSelectCapable = isSelectCapable && CFBooleanGetValue(isSelectCapable);
-
-  if (inputSource && keyboardLayout && !inputSourceHasLayout && !keyboardLayoutIsSelectCapable) {
-    AutoTISInputSourceRef asciiKeyboardLayout(TISCopyCurrentASCIICapableKeyboardLayoutInputSource(), CFRelease);
-    if (asciiKeyboardLayout) {
-      return asciiKeyboardLayout;
-    }
-  }
-
-  return keyboardLayout;
 }
 
 } // namespace
@@ -237,10 +201,6 @@ void OSXKeyState::init()
   m_altPressed = false;
   m_superPressed = false;
   m_capsPressed = false;
-  m_shiftRightPressed = false;
-  m_controlRightPressed = false;
-  m_altRightPressed = false;
-  m_superRightPressed = false;
 
   // build virtual key map
   for (size_t i = 0; i < sizeof(s_controlKeys) / sizeof(s_controlKeys[0]); ++i) {
@@ -333,10 +293,11 @@ KeyButton OSXKeyState::mapKeyFromEvent(KeyIDs &ids, KeyModifierMask *maskOut, CG
   }
 
   // get keyboard info
-  AutoTISInputSourceRef currentKeyboardLayout = copyKeyboardLayoutForKeyTranslation();
+  AutoTISInputSourceRef currentKeyboardLayout(nullptr, CFRelease);
   CFDataRef ref = nullptr;
   {
     std::lock_guard<std::mutex> lock(g_tisMutex);
+    currentKeyboardLayout = AutoTISInputSourceRef(TISCopyCurrentKeyboardLayoutInputSource(), CFRelease);
     if (currentKeyboardLayout)
       ref = (CFDataRef)TISGetInputSourceProperty(currentKeyboardLayout.get(), kTISPropertyUnicodeKeyLayoutData);
   }
@@ -531,7 +492,8 @@ void OSXKeyState::getKeyMap(deskflow::KeyMap &keyMap)
     const void *resource;
     bool layoutValid = false;
 
-    // add regular keys from the layout's key data
+    // add regular keys
+    // try uchr resource first
     TISInputSourceRef keyboardLayout = (TISInputSourceRef)CFArrayGetValueAtIndex(m_groups.get(), g);
     CFDataRef resourceRef = nullptr;
     {
@@ -544,10 +506,10 @@ void OSXKeyState::getKeyMap(deskflow::KeyMap &keyMap)
       resource = CFDataGetBytePtr(resourceRef);
 
     if (layoutValid) {
-      OSXKeyLayoutResource keyResource(resource, keyboardType);
-      if (keyResource.isValid()) {
-        LOG_VERBOSE("using key layout for group %d", g);
-        getKeyMap(keyMap, g, keyResource);
+      OSXUchrKeyResource uchr(resource, keyboardType);
+      if (uchr.isValid()) {
+        LOG_VERBOSE("using uchr resource for group %d", g);
+        getKeyMap(keyMap, g, uchr);
         continue;
       }
     }
@@ -561,19 +523,19 @@ CGEventFlags OSXKeyState::getDeviceDependedFlags() const
   CGEventFlags modifiers = 0;
 
   if (m_shiftPressed) {
-    modifiers |= m_shiftRightPressed ? NX_DEVICERSHIFTKEYMASK : NX_DEVICELSHIFTKEYMASK;
+    modifiers |= NX_DEVICELSHIFTKEYMASK;
   }
 
   if (m_controlPressed) {
-    modifiers |= m_controlRightPressed ? NX_DEVICERCTLKEYMASK : NX_DEVICELCTLKEYMASK;
+    modifiers |= NX_DEVICELCTLKEYMASK;
   }
 
   if (m_altPressed) {
-    modifiers |= m_altRightPressed ? NX_DEVICERALTKEYMASK : NX_DEVICELALTKEYMASK;
+    modifiers |= NX_DEVICELALTKEYMASK;
   }
 
   if (m_superPressed) {
-    modifiers |= m_superRightPressed ? NX_DEVICERCMDKEYMASK : NX_DEVICELCMDKEYMASK;
+    modifiers |= NX_DEVICELCMDKEYMASK;
   }
 
   return modifiers;
@@ -597,39 +559,15 @@ void OSXKeyState::setKeyboardModifiers(CGKeyCode virtualKey, bool keyDown)
   switch (virtualKey) {
   case s_shiftVK:
     m_shiftPressed = keyDown;
-    if (keyDown)
-      m_shiftRightPressed = false;
-    break;
-  case s_shiftRightVK:
-    m_shiftPressed = keyDown;
-    m_shiftRightPressed = keyDown;
     break;
   case s_controlVK:
     m_controlPressed = keyDown;
-    if (keyDown)
-      m_controlRightPressed = false;
-    break;
-  case s_controlRightVK:
-    m_controlPressed = keyDown;
-    m_controlRightPressed = keyDown;
     break;
   case s_altVK:
     m_altPressed = keyDown;
-    if (keyDown)
-      m_altRightPressed = false;
-    break;
-  case s_altRightVK:
-    m_altPressed = keyDown;
-    m_altRightPressed = keyDown;
     break;
   case s_superVK:
     m_superPressed = keyDown;
-    if (keyDown)
-      m_superRightPressed = false;
-    break;
-  case s_superRightVK:
-    m_superPressed = keyDown;
-    m_superRightPressed = keyDown;
     break;
   case s_capsLockVK:
     m_capsPressed = keyDown;

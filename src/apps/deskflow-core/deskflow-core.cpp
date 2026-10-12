@@ -137,7 +137,6 @@ int main(int argc, char **argv)
   if (exitCode == s_exitSuccess) {
     exitCode = coreApp->getExitCode();
   }
-  delete coreApp;
 
   LOG_DEBUG("core exited, code: %d", exitCode);
   return exitCode;

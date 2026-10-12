@@ -12,13 +12,13 @@ Deskflow software consists of a **server** (primary computer) that shares its in
 ### Architecture Overview
 
 Deskflow is built with a modular, cross-platform architecture:
-Note: In older versions of deskflow you may see the term `Screen` used in place of `Computer`
+
 ```
 ┌─────────────────┐    Network Protocol    ┌─────────────────┐
 │   Server App    │◄──────────────────────►│  Client App     │
 │                 │     (Port 24800)       │   (Windows)     │
 │ ┌─────────────┐ │                        │ ┌─────────────┐ │
-│ │  Computer   │ │                        │ │  Computer   │ │
+│ │   Screen    │ │                        │ │   Screen    │ │
 │ │  Platform   │ │                        │ │  Platform   │ │
 │ │   Layer     │ │                        │ │   Layer     │ │
 │ └─────────────┘ │                        │ └─────────────┘ │
@@ -31,7 +31,7 @@ Note: In older versions of deskflow you may see the term `Screen` used in place 
                                            │  Client App     │
                                            │    (macOS)      │
                                            │ ┌─────────────┐ │
-                                           │ │  Computer   │ │
+                                           │ │   Screen    │ │
                                            │ │  Platform   │ │
                                            │ │   Layer     │ │
                                            │ └─────────────┘ │
@@ -41,7 +41,7 @@ Note: In older versions of deskflow you may see the term `Screen` used in place 
                                            │  Client App     │
                                            │   (Custom)      │
                                            │ ┌─────────────┐ │
-                                           │ │  Computer   │ │
+                                           │ │   Screen    │ │
                                            │ │  Platform   │ │
                                            │ │   Layer     │ │
                                            │ └─────────────┘ │

@@ -17,7 +17,7 @@
 
 #if defined(Q_OS_WIN)
 #include "arch/win32/ArchDaemonWindows.h"
-#include "deskflow/Computer.h"
+#include "deskflow/Screen.h"
 #include "platform/MSWindowsDebugOutputter.h"
 #include "platform/MSWindowsEventQueueBuffer.h"
 #include "platform/MSWindowsWatchdog.h"

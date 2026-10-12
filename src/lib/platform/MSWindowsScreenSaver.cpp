@@ -12,7 +12,7 @@
 #include "base/Log.h"
 #include "base/TMethodJob.h"
 #include "mt/Thread.h"
-#include "platform/MSWindowsComputer.h"
+#include "platform/MSWindowsScreen.h"
 
 #include <malloc.h>
 #include <tchar.h>
@@ -157,7 +157,7 @@ BOOL CALLBACK MSWindowsScreenSaver::killScreenSaverFunc(HWND hwnd, LPARAM arg)
 {
   if (IsWindowVisible(hwnd)) {
     HINSTANCE instance = (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE);
-    if (instance != MSWindowsComputer::getWindowInstance()) {
+    if (instance != MSWindowsScreen::getWindowInstance()) {
       PostMessage(hwnd, WM_CLOSE, 0, 0);
       *reinterpret_cast<bool *>(arg) = true;
     }

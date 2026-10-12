@@ -8,20 +8,15 @@
 #include "ui_ClientConfigDialog.h"
 
 #include "common/Settings.h"
-#include "gui/widgets/SettingsDialogButtonBox.h"
 
 #include <QPushButton>
 
-ClientConfigDialog::ClientConfigDialog(QWidget *parent)
-    : QDialog(parent),
-      ui(new Ui::ClientConfigDialog),
-      m_buttonBox{new SettingsDialogButtonBox(this)}
+ClientConfigDialog::ClientConfigDialog(QWidget *parent) : QDialog(parent), ui(new Ui::ClientConfigDialog)
 {
   ui->setupUi(this);
-  layout()->addWidget(m_buttonBox);
+  updateText();
   initConnections();
   load();
-  updateControls();
   setButtonBoxEnabledButtons();
 }
 
@@ -33,27 +28,29 @@ ClientConfigDialog::~ClientConfigDialog()
 void ClientConfigDialog::changeEvent(QEvent *e)
 {
   QDialog::changeEvent(e);
-  if (e->type() == QEvent::LanguageChange)
+  if (e->type() == QEvent::LanguageChange) {
     ui->retranslateUi(this);
+    updateText();
+  }
 }
 
-void ClientConfigDialog::updateControls() const
+void ClientConfigDialog::updateText() const
 {
-  const auto writable = Settings::isWritable();
-  ui->cbDynamicConnectTime->setEnabled(writable);
-  ui->cbLanguageSync->setEnabled(writable);
-  ui->cbXScrollInvert->setEnabled(writable);
-  ui->sbXScrollScale->setEnabled(writable);
-  ui->cbYScrollInvert->setEnabled(writable);
-  ui->sbYScrollScale->setEnabled(writable);
+  ui->buttonBox->button(QDialogButtonBox::Save)->setToolTip(tr("Close and save changes"));
+  ui->buttonBox->button(QDialogButtonBox::Cancel)->setToolTip(tr("Close and forget changes"));
+  ui->buttonBox->button(QDialogButtonBox::Reset)->setToolTip(tr("Reset to stored values"));
+  ui->buttonBox->button(QDialogButtonBox::RestoreDefaults)->setToolTip(tr("Reset to default values"));
 }
 
 void ClientConfigDialog::initConnections() const
 {
-  connect(m_buttonBox, &SettingsDialogButtonBox::accepted, this, &ClientConfigDialog::save);
-  connect(m_buttonBox, &SettingsDialogButtonBox::rejected, this, &QDialog::reject);
-  connect(m_buttonBox, &SettingsDialogButtonBox::reset, this, &ClientConfigDialog::load);
-  connect(m_buttonBox, &SettingsDialogButtonBox::restoreDefault, this, &ClientConfigDialog::resetToDefault);
+  connect(ui->buttonBox, &QDialogButtonBox::accepted, this, &ClientConfigDialog::save);
+  connect(ui->buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
+  connect(ui->buttonBox->button(QDialogButtonBox::Reset), &QPushButton::clicked, this, &ClientConfigDialog::load);
+  connect(
+      ui->buttonBox->button(QDialogButtonBox::RestoreDefaults), &QPushButton::clicked, this,
+      &ClientConfigDialog::resetToDefault
+  );
 
   connect(
       ui->cbDynamicConnectTime, &QCheckBox::checkStateChanged, this, &ClientConfigDialog::setButtonBoxEnabledButtons
@@ -63,7 +60,6 @@ void ClientConfigDialog::initConnections() const
   connect(ui->sbYScrollScale, &QDoubleSpinBox::valueChanged, this, &ClientConfigDialog::setButtonBoxEnabledButtons);
   connect(ui->cbXScrollInvert, &QCheckBox::checkStateChanged, this, &ClientConfigDialog::setButtonBoxEnabledButtons);
   connect(ui->sbXScrollScale, &QDoubleSpinBox::valueChanged, this, &ClientConfigDialog::setButtonBoxEnabledButtons);
-  connect(Settings::instance(), &Settings::settingsWritableChanged, this, &ClientConfigDialog::updateControls);
 }
 
 bool ClientConfigDialog::isModified() const
@@ -91,9 +87,9 @@ bool ClientConfigDialog::isDefault() const
 void ClientConfigDialog::setButtonBoxEnabledButtons() const
 {
   const bool modified = isModified();
-  m_buttonBox->enableSave(modified);
-  m_buttonBox->enableReset(modified);
-  m_buttonBox->enableRestoreDefaults(!isDefault());
+  ui->buttonBox->button(QDialogButtonBox::Save)->setEnabled(modified);
+  ui->buttonBox->button(QDialogButtonBox::Reset)->setEnabled(modified);
+  ui->buttonBox->button(QDialogButtonBox::RestoreDefaults)->setEnabled(!isDefault());
 }
 
 void ClientConfigDialog::load()

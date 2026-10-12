@@ -29,6 +29,8 @@ AboutDialog::AboutDialog(QWidget *parent) : QDialog(parent), ui{std::make_unique
   ui->btnCopyVersion->setIcon(QIcon::fromTheme(QIcon::ThemeIcon::EditCopy));
   connect(ui->btnCopyVersion, &QPushButton::clicked, this, &AboutDialog::copyVersionText);
 
+  ui->lblName->setText(kAppName);
+  setWindowTitle(tr("About %1").arg(kAppName));
   ui->lblVersion->setText(kDisplayVersion);
   ui->lblDescription->setText(kAppDescription);
   ui->lblCopyright->setText(kCopyright);

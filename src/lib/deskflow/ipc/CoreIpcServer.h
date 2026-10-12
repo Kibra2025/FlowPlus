@@ -10,6 +10,7 @@
 
 #include <QObject>
 #include <QSet>
+#include <functional>
 
 class QLocalSocket;
 
@@ -21,11 +22,24 @@ class CoreIpcServer : public IpcServer
 
 public:
   explicit CoreIpcServer(QObject *parent);
+  ~CoreIpcServer() override;
 
+  static bool hasInstance();
   static CoreIpcServer &instance();
+
+  void setStagedDragInfo(const QByteArray &dragPayload);
+  QByteArray stagedDragInfo() const;
+  void clearStagedDragInfo();
+
+Q_SIGNALS:
+  void startDragRequested(const QString &payload);
+  void sendFileChunkRequested(const QString &payload);
+  void dropRequested(const QString &payload);
 
 private:
   void processCommand(QLocalSocket *clientSocket, const QString &command, const QStringList &parts) override;
+
+  QByteArray m_stagedDragPayload;
 };
 
 } // namespace deskflow::core::ipc

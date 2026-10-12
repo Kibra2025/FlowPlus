@@ -8,7 +8,7 @@
 #pragma once
 
 #include "deskflow/ClipboardTypes.h"
-#include "deskflow/IComputer.h"
+#include "deskflow/IScreen.h"
 #include "deskflow/KeyTypes.h"
 #include "deskflow/MouseTypes.h"
 #include "deskflow/OptionTypes.h"
@@ -20,26 +20,26 @@
 This interface defines the methods necessary for the server to
 communicate with a client.
 */
-class IClient : public IComputer
+class IClient : public IScreen
 {
 public:
   //! @name manipulators
   //@{
 
-  //! Enter computer
+  //! Enter screen
   /*!
-  Enter the computer.  The cursor should be warped to \p xAbs,yAbs.
+  Enter the screen.  The cursor should be warped to \p xAbs,yAbs.
   \p mask is the expected toggle button state and the client should
   update its state to match.  \p forScreensaver is true iff the
-  computer is being entered because the screen saver is starting.
+  screen is being entered because the screen saver is starting.
   Subsequent clipboard events should report \p seqNum.
   */
   virtual void enter(int32_t xAbs, int32_t yAbs, uint32_t seqNum, KeyModifierMask mask, bool forScreensaver) = 0;
 
-  //! Leave computer
+  //! Leave screen
   /*!
-  Leave the computer.  Return false iff the user may not leave the
-  client's computer (because, for example, a button is down).
+  Leave the screen.  Return false iff the user may not leave the
+  client's screen (because, for example, a button is down).
   */
   virtual bool leave() = 0;
 
@@ -107,7 +107,7 @@ public:
   //! Notify of mouse motion
   /*!
   Synthesize mouse events to generate mouse motion to the absolute
-  computer position \c xAbs,yAbs.
+  screen position \c xAbs,yAbs.
   */
   virtual void mouseMove(int32_t xAbs, int32_t yAbs) = 0;
 

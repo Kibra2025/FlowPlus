@@ -84,8 +84,8 @@ bool XDGPowerManager::inhibitScreenCall(InhibitScreenServices serviceID, bool st
       cookies[serviceNum] = reply.value();
   } else {
     if (!cookies[serviceNum]) {
-      // Nothing was ever inhibited for this service
-      return true;
+      error = "cookies are empty";
+      return false;
     }
     reply = screenSaverInterface.call("UnInhibit", cookies[serviceNum]);
     cookies[serviceNum] = 0;

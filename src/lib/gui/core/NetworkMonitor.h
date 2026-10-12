@@ -47,7 +47,7 @@ public:
   void stopMonitoring();
 
   /**
-   * @brief Get list of all available IP addresses (excluding loopback addresses)
+   * @brief Get list of all available IP addresses (excluding local and link-local addresses)
    * @return IP address list
    */
   static QStringList validAddresses();

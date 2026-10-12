@@ -12,17 +12,15 @@
 #include "base/IEventQueue.h"
 #include "base/Log.h"
 #include "client/ServerProxy.h"
-#include "client/ServerProxy1_7.h"
-#include "client/ServerProxy1_8.h"
 #include "common/NetworkProtocol.h"
 #include "common/Settings.h"
 #include "deskflow/Clipboard.h"
-#include "deskflow/Computer.h"
 #include "deskflow/DeskflowException.h"
-#include "deskflow/IPlatformComputer.h"
+#include "deskflow/IPlatformScreen.h"
 #include "deskflow/PacketStreamFilter.h"
 #include "deskflow/ProtocolTypes.h"
 #include "deskflow/ProtocolUtil.h"
+#include "deskflow/Screen.h"
 #include "deskflow/StreamChunker.h"
 #include "deskflow/ipc/CoreIpc.h"
 #include "net/IDataSocket.h"
@@ -54,30 +52,33 @@ Client::DisconnectRequest::DisconnectRequest(deskflow::core::ConnectionRefusal r
 
 Client::Client(
     IEventQueue *events, const std::string &name, const NetworkAddress &address, ISocketFactory *socketFactory,
-    deskflow::Computer *computer
+    deskflow::Screen *screen
 )
     : m_name(name),
       m_serverAddress(address),
       m_socketFactory(socketFactory),
-      m_computer(computer),
+      m_screen(screen),
       m_events(events),
-      m_useSecureNetwork(Settings::value(Settings::Security::TlsEnabled).toBool())
+      m_useSecureNetwork(Settings::value(Settings::Security::TlsEnabled).toBool()),
+      m_maximumClipboardReceiveSize(
+          static_cast<size_t>(Settings::value(Settings::Server::ClipboardSize).toUInt()) * 1024 * 1024
+      )
 {
   assert(m_socketFactory != nullptr);
-  assert(m_computer != nullptr);
+  assert(m_screen != nullptr);
 
   // register suspend/resume event handlers
-  m_events->addHandler(EventTypes::ComputerSuspend, getEventTarget(), [this](const auto &) { handleSuspend(); });
-  m_events->addHandler(EventTypes::ComputerResume, getEventTarget(), [this](const auto &) { handleResume(); });
+  m_events->addHandler(EventTypes::ScreenSuspend, getEventTarget(), [this](const auto &) { handleSuspend(); });
+  m_events->addHandler(EventTypes::ScreenResume, getEventTarget(), [this](const auto &) { handleResume(); });
 }
 
 Client::~Client()
 {
-  m_events->removeHandler(EventTypes::ComputerSuspend, getEventTarget());
-  m_events->removeHandler(EventTypes::ComputerResume, getEventTarget());
+  m_events->removeHandler(EventTypes::ScreenSuspend, getEventTarget());
+  m_events->removeHandler(EventTypes::ScreenResume, getEventTarget());
 
   cleanupTimer();
-  cleanupComputer();
+  cleanupScreen();
   cleanupConnecting();
   cleanupConnection();
   delete m_socketFactory;
@@ -169,7 +170,7 @@ void Client::refuseConnection(deskflow::core::ConnectionRefusal reason, const ch
 void Client::handshakeComplete()
 {
   m_ready = true;
-  m_computer->enable();
+  m_screen->enable();
   if (m_relativeMouseMoves && !m_hasRelativeRestorePosition) {
     saveRelativeRestorePosition();
   }
@@ -193,27 +194,27 @@ NetworkAddress Client::getServerAddress() const
 
 size_t Client::getMaximumClipboardReceiveSizeBytes() const
 {
-  return m_maximumClipboardSize * 1024;
+  return m_maximumClipboardReceiveSize;
 }
 
 void *Client::getEventTarget() const
 {
-  return m_computer->getEventTarget();
+  return m_screen->getEventTarget();
 }
 
 bool Client::getClipboard(ClipboardID id, IClipboard *clipboard) const
 {
-  return m_computer->getClipboard(id, clipboard);
+  return m_screen->getClipboard(id, clipboard);
 }
 
 void Client::getShape(int32_t &x, int32_t &y, int32_t &w, int32_t &h) const
 {
-  m_computer->getShape(x, y, w, h);
+  m_screen->getShape(x, y, w, h);
 }
 
 void Client::getCursorPos(int32_t &x, int32_t &y) const
 {
-  m_computer->getCursorPos(x, y);
+  m_screen->getCursorPos(x, y);
 }
 
 void Client::enter(int32_t xAbs, int32_t yAbs, uint32_t, KeyModifierMask mask, bool)
@@ -224,8 +225,9 @@ void Client::enter(int32_t xAbs, int32_t yAbs, uint32_t, KeyModifierMask mask, b
     yAbs = m_relativeRestoreY;
     LOG_VERBOSE("using relative restore position: %d,%d", xAbs, yAbs);
   }
-  m_computer->mouseMove(xAbs, yAbs);
-  m_computer->enter(mask);
+  m_screen->mouseMove(xAbs, yAbs);
+  m_screen->enter(mask);
+  ipcSendToClient(QStringLiteral("clientScreenEntered"), QStringLiteral("%1,%2").arg(xAbs).arg(yAbs));
 }
 
 bool Client::leave()
@@ -235,7 +237,8 @@ bool Client::leave()
   }
   m_active = false;
 
-  m_computer->leave();
+  m_screen->leave();
+  ipcSendToClient(QStringLiteral("clientScreenLeft"), QString());
 
   if (m_enableClipboard) {
     // send clipboards that we own and that have changed
@@ -251,14 +254,14 @@ bool Client::leave()
 
 void Client::setClipboard(ClipboardID id, const IClipboard *clipboard)
 {
-  m_computer->setClipboard(id, clipboard);
+  m_screen->setClipboard(id, clipboard);
   m_ownClipboard[id] = false;
   m_sentClipboard[id] = false;
 }
 
 void Client::grabClipboard(ClipboardID id)
 {
-  m_computer->grabClipboard(id);
+  m_screen->grabClipboard(id);
   m_ownClipboard[id] = false;
   m_sentClipboard[id] = false;
 }
@@ -270,54 +273,60 @@ void Client::setClipboardDirty(ClipboardID, bool)
 
 void Client::keyDown(KeyID id, KeyModifierMask mask, KeyButton button, const std::string &lang)
 {
-  m_computer->keyDown(id, mask, button, lang);
+  m_screen->keyDown(id, mask, button, lang);
 }
 
 void Client::keyRepeat(KeyID id, KeyModifierMask mask, int32_t count, KeyButton button, const std::string &lang)
 {
-  m_computer->keyRepeat(id, mask, count, button, lang);
+  m_screen->keyRepeat(id, mask, count, button, lang);
 }
 
 void Client::keyUp(KeyID id, KeyModifierMask mask, KeyButton button)
 {
-  m_computer->keyUp(id, mask, button);
+  m_screen->keyUp(id, mask, button);
 }
 
 void Client::mouseDown(ButtonID id)
 {
-  m_computer->mouseDown(id);
+  m_screen->mouseDown(id);
 }
 
 void Client::mouseUp(ButtonID id)
 {
-  m_computer->mouseUp(id);
+  m_screen->mouseUp(id);
+  if (id == kButtonLeft) {
+    int32_t cx = 0;
+    int32_t cy = 0;
+    m_screen->getCursorPos(cx, cy);
+    ipcSendToClient(QStringLiteral("mouseButtonUp"), QStringLiteral("client,%1,%2").arg(cx).arg(cy));
+  }
 }
 
 void Client::mouseMove(int32_t x, int32_t y)
 {
-  m_computer->mouseMove(x, y);
+  m_screen->mouseMove(x, y);
 }
 
 void Client::mouseRelativeMove(int32_t dx, int32_t dy)
 {
-  m_computer->mouseRelativeMove(dx, dy);
+  m_screen->mouseRelativeMove(dx, dy);
 }
 
 void Client::mouseWheel(int32_t xDelta, int32_t yDelta)
 {
-  m_computer->mouseWheel(xDelta, yDelta);
+  m_screen->mouseWheel(xDelta, yDelta);
 }
 
 void Client::screensaver(bool activate)
 {
-  m_computer->screensaver(activate);
+  m_screen->screensaver(activate);
 }
 
 void Client::resetOptions()
 {
   m_relativeMouseMoves = false;
   m_hasRelativeRestorePosition = false;
-  m_computer->resetOptions();
+  m_screen->resetOptions();
 }
 
 void Client::setOptions(const OptionsList &options)
@@ -358,12 +367,12 @@ void Client::setOptions(const OptionsList &options)
     LOG_INFO("clipboard sharing is disabled because the server set the maximum clipboard size to 0");
   }
 
-  m_computer->setOptions(options);
+  m_screen->setOptions(options);
 }
 
 void Client::saveRelativeRestorePosition()
 {
-  m_computer->getCursorPos(m_relativeRestoreX, m_relativeRestoreY);
+  m_screen->getCursorPos(m_relativeRestoreX, m_relativeRestoreY);
   m_hasRelativeRestorePosition = true;
   LOG_VERBOSE("saved relative restore position: %d,%d", m_relativeRestoreX, m_relativeRestoreY);
 }
@@ -376,18 +385,18 @@ std::string Client::getName() const
 void Client::sendClipboard(ClipboardID id)
 {
   // note -- m_mutex must be locked on entry
-  assert(m_computer != nullptr);
+  assert(m_screen != nullptr);
   assert(m_server != nullptr);
 
   // get clipboard data.  set the clipboard time to the last
-  // clipboard time before getting the data from the computer
-  // as the computer may detect an unchanged clipboard and
+  // clipboard time before getting the data from the screen
+  // as the screen may detect an unchanged clipboard and
   // avoid copying the data.
   Clipboard clipboard;
   if (clipboard.open(m_timeClipboard[id])) {
     clipboard.close();
   }
-  m_computer->getClipboard(id, &clipboard);
+  m_screen->getClipboard(id, &clipboard);
 
   // check time
   if (m_timeClipboard[id] == 0 || clipboard.getTime() != m_timeClipboard[id]) {
@@ -464,38 +473,18 @@ void Client::setupConnection()
   });
 }
 
-bool Client::setupComputer(int16_t protocolMinor)
+void Client::setupScreen()
 {
   assert(m_server == nullptr);
 
   m_ready = false;
-
-  // only 1.6 and later have a proxy: the clipboard, mouse wheel and key message formats
-  // differ below that, and nothing older (synergy 1.4 and earlier) still needs supporting.
-  // a version with no case is refused by the hello handler.
-  switch (protocolMinor) {
-  case 6:
-    m_server = new ServerProxy(this, m_stream, m_events);
-    break;
-  case 7:
-    m_server = new ServerProxy1_7(this, m_stream, m_events);
-    break;
-  case 8:
-    m_server = new ServerProxy1_8(this, m_stream, m_events);
-    break;
-  default:
-    break;
-  }
-
-  if (m_server != nullptr) {
-    m_events->addHandler(EventTypes::ComputerShapeChanged, getEventTarget(), [this](const auto &) {
-      handleShapeChanged();
-    });
-    m_events->addHandler(EventTypes::ClipboardGrabbed, getEventTarget(), [this](const auto &e) {
-      handleClipboardGrabbed(e);
-    });
-  }
-  return m_server != nullptr;
+  m_server = new ServerProxy(this, m_stream, m_events);
+  m_events->addHandler(EventTypes::ScreenShapeChanged, getEventTarget(), [this](const auto &) {
+    handleShapeChanged();
+  });
+  m_events->addHandler(EventTypes::ClipboardGrabbed, getEventTarget(), [this](const auto &e) {
+    handleClipboardGrabbed(e);
+  });
 }
 
 void Client::setupTimer()
@@ -509,7 +498,7 @@ void Client::cleanup()
 {
   m_connectOnResume = false;
   cleanupTimer();
-  cleanupComputer();
+  cleanupScreen();
   cleanupConnecting();
   cleanupConnection();
 }
@@ -537,14 +526,14 @@ void Client::cleanupConnection()
   }
 }
 
-void Client::cleanupComputer()
+void Client::cleanupScreen()
 {
   if (m_server != nullptr) {
     if (m_ready) {
-      m_computer->disable();
+      m_screen->disable();
       m_ready = false;
     }
-    m_events->removeHandler(EventTypes::ComputerShapeChanged, getEventTarget());
+    m_events->removeHandler(EventTypes::ScreenShapeChanged, getEventTarget());
     m_events->removeHandler(EventTypes::ClipboardGrabbed, getEventTarget());
     delete m_server;
     m_server = nullptr;
@@ -605,7 +594,7 @@ void Client::handleConnectTimeout()
 void Client::handleOutputError()
 {
   cleanupTimer();
-  cleanupComputer();
+  cleanupScreen();
   cleanupConnection();
   LOG_WARN("error sending to server");
   sendEvent(EventTypes::ClientDisconnected);
@@ -614,7 +603,7 @@ void Client::handleOutputError()
 void Client::handleDisconnected()
 {
   cleanupTimer();
-  cleanupComputer();
+  cleanupScreen();
   cleanupConnection();
   LOG_VERBOSE("disconnected");
   sendEvent(EventTypes::ClientDisconnected);
@@ -647,7 +636,7 @@ void Client::handleClipboardGrabbed(const Event &event)
     return;
   }
 
-  const auto *info = static_cast<const IComputer::ClipboardInfo *>(event.getData());
+  const auto *info = static_cast<const IScreen::ClipboardInfo *>(event.getData());
 
   // grab ownership
   m_server->onGrabClipboard(info->m_id);
@@ -657,7 +646,7 @@ void Client::handleClipboardGrabbed(const Event &event)
   m_sentClipboard[info->m_id] = false;
   m_timeClipboard[info->m_id] = 0;
 
-  // if we're not the active computer then send the clipboard now,
+  // if we're not the active screen then send the clipboard now,
   // otherwise we'll wait until we leave.
   if (!m_active) {
     sendClipboard(info->m_id);
@@ -702,17 +691,6 @@ void Client::handleHello()
     );
   }
 
-  // no proxy speaks the negotiated version, so hang up as incompatible rather than
-  // talk a version the client does not implement, the same rule the server applies
-  // when it picks a client proxy
-  if (!setupComputer(helloBackMinor)) {
-    LOG_WARN("server protocol version not supported: %d.%d", serverMajor, serverMinor);
-    sendConnectionFailedEvent(IncompatibleClientException(serverMajor, serverMinor).what());
-    cleanupTimer();
-    cleanupConnection();
-    return;
-  }
-
   LOG_DEBUG("saying hello back with version %s %d.%d", protocolName.c_str(), kProtocolMajorVersion, helloBackMinor);
 
   // dynamically build write format for hello back since `ProtocolUtil::writef`
@@ -721,6 +699,7 @@ void Client::handleHello()
   ProtocolUtil::writef(m_stream, helloBackMessage.c_str(), kProtocolMajorVersion, helloBackMinor, &m_name);
 
   // now connected but waiting to complete handshake
+  setupScreen();
   cleanupTimer();
 
   // make sure we process any remaining messages later.  we won't

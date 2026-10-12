@@ -35,6 +35,7 @@ public:
 
   // Virtual Methods subclasses can impliment
   virtual int run() = 0;
+  virtual void startNode() = 0;
   virtual std::vector<std::string> getKeyboardLayoutList() = 0;
   virtual std::string getCurrentLanguageCode() = 0;
 

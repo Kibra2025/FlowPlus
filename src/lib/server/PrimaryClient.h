@@ -10,22 +10,22 @@
 #include "server/BaseClientProxy.h"
 
 namespace deskflow {
-class Computer;
+class Screen;
 }
 
-//! Primary computer as pseudo-client
+//! Primary screen as pseudo-client
 /*!
-The primary computer does not have a client associated with it.  This
-class provides a pseudo-client to allow the primary computer to be
+The primary screen does not have a client associated with it.  This
+class provides a pseudo-client to allow the primary screen to be
 treated as if it was a client.
 */
 class PrimaryClient : public BaseClientProxy
 {
 public:
   /*!
-  \c name is the name of the server and \p computer is primary computer.
+  \c name is the name of the server and \p screen is primary screen.
   */
-  PrimaryClient(const std::string &name, deskflow::Computer *computer);
+  PrimaryClient(const std::string &name, deskflow::Screen *screen);
   ~PrimaryClient() override = default;
 
   //! @name manipulators
@@ -50,16 +50,16 @@ public:
   */
   virtual void unregisterHotKey(uint32_t id);
 
-  //! Prepare to synthesize input on primary computer
+  //! Prepare to synthesize input on primary screen
   /*!
-  Prepares the primary computer to receive synthesized input.  We do not
+  Prepares the primary screen to receive synthesized input.  We do not
   want to receive this synthesized input as user input so this method
   ensures that we ignore it.  Calls to \c fakeInputBegin() and
   \c fakeInputEnd() may be nested;  only the outermost have an effect.
   */
   void fakeInputBegin();
 
-  //! Done synthesizing input on primary computer
+  //! Done synthesizing input on primary screen
   /*!
   Undoes whatever \c fakeInputBegin() did.
   */
@@ -72,7 +72,7 @@ public:
   //! Get jump zone size
   /*!
   Return the jump zone size, the size of the regions on the edges of
-  the computer that cause the cursor to jump to another computer.
+  the screen that cause the cursor to jump to another screen.
   */
   int32_t getJumpZoneSize() const;
 
@@ -80,29 +80,29 @@ public:
   /*!
   Return the cursor center position which is where we park the
   cursor to compute cursor motion deltas and should be far from
-  the edges of the computer, typically the center.
+  the edges of the screen, typically the center.
   */
   void getCursorCenter(int32_t &x, int32_t &y) const;
 
   //! Get toggle key state
   /*!
-  Returns the primary computer's current toggle modifier key state.
+  Returns the primary screen's current toggle modifier key state.
   */
   virtual KeyModifierMask getToggleMask() const;
 
-  //! Get computer lock state
+  //! Get screen lock state
   /*!
-  Returns true if the user is locked to the computer.
+  Returns true if the user is locked to the screen.
   */
-  bool isLockedToComputer() const;
+  bool isLockedToScreen() const;
 
   //@}
 
-  // FIXME -- these probably belong on IComputer
+  // FIXME -- these probably belong on IScreen
   virtual void enable();
   virtual void disable();
 
-  // IComputer overrides
+  // IScreen overrides
   void *getEventTarget() const override;
   bool getClipboard(ClipboardID id, IClipboard *) const override;
   void getShape(int32_t &x, int32_t &y, int32_t &width, int32_t &height) const override;
@@ -140,7 +140,7 @@ public:
   }
 
 private:
-  deskflow::Computer *m_computer;
+  deskflow::Screen *m_screen;
   bool m_clipboardDirty[kClipboardEnd] = {false, false};
   int32_t m_fakeInputCount = 0;
 };

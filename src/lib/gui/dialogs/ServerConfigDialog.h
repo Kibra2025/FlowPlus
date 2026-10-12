@@ -1,6 +1,6 @@
 /*
  * Deskflow -- mouse and keyboard sharing utility
- * SPDX-FileCopyrightText: (C) 2025 - 2026 Chris Rizzitello <sithlord48@gmail.com>
+ * SPDX-FileCopyrightText: (C) 2025 Chris Rizzitello <sithlord48@gmail.com>
  * SPDX-FileCopyrightText: (C) 2012 - 2016 Synergy App Ltd
  * SPDX-FileCopyrightText: (C) 2008 Volker Lanz <vl@fidra.de>
  * SPDX-License-Identifier: GPL-2.0-only WITH LicenseRef-OpenSSL-Exception
@@ -8,13 +8,12 @@
 
 #pragma once
 
-#include "ComputerSetupModel.h"
+#include "ScreenSetupModel.h"
 #include "common/NetworkProtocol.h"
 #include "config/ServerConfig.h"
 
 #include <QDialog>
 
-class SettingsDialogButtonBox;
 class QItemSelection;
 
 namespace Ui {
@@ -29,13 +28,19 @@ public:
   ServerConfigDialog(QWidget *parent, ServerConfig &config);
   ~ServerConfigDialog() override;
   bool addClient(const QString &clientName);
+
+public Q_SLOTS:
+  void accept() override;
+  void reject() override;
   void message(const QString &message)
   {
     m_message = message;
   }
 
+protected Q_SLOTS:
+  void onScreenRemoved();
+
 protected:
-  void onComputerRemoved();
   void addClient();
   bool addComputer(const QString &clientName, bool doSilent);
 
@@ -79,24 +84,14 @@ protected:
   {
     m_originalServerConfig = s;
   }
-  ComputerSetupModel &model()
+  ScreenSetupModel &model()
   {
-    return m_computerSetupModel;
+    return m_screenSetupModel;
   }
 
 private:
-  void save();
-  void cancel();
   void loadFromConfig();
-  void resetFromSettings();
-  void refreshControls();
   void initConnections() const;
-  void updateControls() const;
-  void restoreFromDefaults();
-  void setServerConfig();
-  bool isGeneralConfigModified() const;
-  bool isGeneralConfigDefault() const;
-  void setButtonBoxEnabledButtons() const;
   std::unique_ptr<Ui::ServerConfigDialog> ui;
   QString m_message = "";
   int m_columns;
@@ -118,6 +113,8 @@ private:
   bool m_defaultLockToComputerState;
   QString m_originalServerConfigUsesExternalFile;
   ServerConfig m_serverConfig;
-  ComputerSetupModel m_computerSetupModel;
-  SettingsDialogButtonBox *m_buttonBox = nullptr;
+  ScreenSetupModel m_screenSetupModel;
+
+private Q_SLOTS:
+  void onChange();
 };

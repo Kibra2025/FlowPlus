@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>490</width>
-    <height>326</height>
+    <height>366</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -25,6 +25,9 @@
   <layout class="QVBoxLayout" name="verticalLayout_3">
    <item>
     <widget class="QTabWidget" name="tabWidget">
+     <property name="currentIndex">
+      <number>2</number>
+     </property>
      <widget class="QWidget" name="tabGeneral">
       <attribute name="title">
        <string>&amp;General</string>
@@ -37,13 +40,13 @@
         <number>12</number>
        </property>
        <property name="topMargin">
-        <number>12</number>
+        <number>0</number>
        </property>
        <property name="rightMargin">
         <number>12</number>
        </property>
        <property name="bottomMargin">
-        <number>12</number>
+        <number>0</number>
        </property>
        <item>
         <spacer name="verticalSpacer_6">
@@ -144,13 +147,13 @@
         <number>12</number>
        </property>
        <property name="topMargin">
-        <number>12</number>
+        <number>0</number>
        </property>
        <property name="rightMargin">
         <number>12</number>
        </property>
        <property name="bottomMargin">
-        <number>12</number>
+        <number>0</number>
        </property>
        <item>
         <spacer name="verticalSpacer_7">
@@ -263,13 +266,13 @@
         <number>12</number>
        </property>
        <property name="topMargin">
-        <number>12</number>
+        <number>0</number>
        </property>
        <property name="rightMargin">
         <number>12</number>
        </property>
        <property name="bottomMargin">
-        <number>12</number>
+        <number>0</number>
        </property>
        <item>
         <spacer name="verticalSpacer_8">
@@ -448,13 +451,13 @@
         <number>12</number>
        </property>
        <property name="topMargin">
-        <number>12</number>
+        <number>0</number>
        </property>
        <property name="rightMargin">
         <number>12</number>
        </property>
        <property name="bottomMargin">
-        <number>12</number>
+        <number>0</number>
        </property>
        <item>
         <spacer name="verticalSpacer_9">
@@ -755,13 +758,13 @@
         <number>12</number>
        </property>
        <property name="topMargin">
-        <number>12</number>
+        <number>0</number>
        </property>
        <property name="rightMargin">
         <number>12</number>
        </property>
        <property name="bottomMargin">
-        <number>12</number>
+        <number>0</number>
        </property>
        <item>
         <spacer name="verticalSpacer_10">
@@ -853,15 +856,18 @@
          </property>
         </spacer>
        </item>
-       <item>
-        <widget class="QPushButton" name="btnClearAllSettings">
-         <property name="text">
-          <string>Remove all settings</string>
-         </property>
-        </widget>
-       </item>
       </layout>
      </widget>
+    </widget>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="orientation">
+      <enum>Qt::Orientation::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::StandardButton::Cancel|QDialogButtonBox::StandardButton::Reset|QDialogButtonBox::StandardButton::RestoreDefaults|QDialogButtonBox::StandardButton::Save</set>
+     </property>
     </widget>
    </item>
   </layout>

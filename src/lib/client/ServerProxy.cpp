@@ -1,7 +1,7 @@
 /*
  * Deskflow -- mouse and keyboard sharing utility
  * SPDX-FileCopyrightText: (C) 2025 Deskflow Developers
- * SPDX-FileCopyrightText: (C) 2012 - 2016, 2026 Synergy App Ltd
+ * SPDX-FileCopyrightText: (C) 2012 - 2016 Synergy App Ltd
  * SPDX-FileCopyrightText: (C) 2002 Chris Schoeneman
  * SPDX-License-Identifier: GPL-2.0-only WITH LicenseRef-OpenSSL-Exception
  */
@@ -18,6 +18,8 @@
 #include "deskflow/ProtocolTypes.h"
 #include "deskflow/ProtocolUtil.h"
 #include "deskflow/StreamChunker.h"
+#include "deskflow/ipc/CoreIpc.h"
+#include "deskflow/ipc/CoreIpcServer.h"
 #include "io/IStream.h"
 
 #include <cstring>
@@ -45,6 +47,44 @@ ServerProxy::ServerProxy(Client *client, deskflow::IStream *stream, IEventQueue 
   m_events->addHandler(EventTypes::ClipboardSending, this, [this](const auto &e) {
     ClipboardChunk::send(m_stream, e.getDataObject());
   });
+  m_events->addHandler(EventTypes::FileDragSending, this, [this](const auto &e) {
+    const auto *payload = static_cast<const std::string *>(e.getData());
+    if (payload) {
+      sendDragInfo(1, payload->data(), payload->size());
+    }
+    delete payload;
+  });
+  m_events->addHandler(EventTypes::FileChunkSending, this, [this](const auto &e) {
+    const auto *payload = static_cast<const std::string *>(e.getData());
+    if (payload && !payload->empty()) {
+      const auto mark = static_cast<uint8_t>((*payload)[0]);
+      std::string chunk = payload->substr(1);
+      sendFileChunk(mark, chunk.data(), chunk.size());
+    }
+    delete payload;
+  });
+
+  if (deskflow::core::ipc::CoreIpcServer::hasInstance()) {
+    auto &ipc = deskflow::core::ipc::CoreIpcServer::instance();
+    QObject::connect(&ipc, &deskflow::core::ipc::CoreIpcServer::startDragRequested, [&ipc, this](const QString &) {
+      const QByteArray raw = ipc.stagedDragInfo();
+      if (!raw.isEmpty()) {
+        auto *str = new std::string(raw.constData(), static_cast<size_t>(raw.size()));
+        m_events->addEvent(Event(EventTypes::FileDragSending, this, str, Event::EventFlags::DontFreeData));
+      }
+    });
+    QObject::connect(&ipc, &deskflow::core::ipc::CoreIpcServer::sendFileChunkRequested, [this](const QString &encoded) {
+      const auto sep = encoded.indexOf(':');
+      if (sep > 0) {
+        const auto mark = static_cast<char>(encoded.left(sep).toUInt());
+        const QByteArray chunk = QByteArray::fromBase64(encoded.mid(sep + 1).toLatin1());
+        auto *str = new std::string();
+        str->push_back(mark);
+        str->append(chunk.constData(), static_cast<size_t>(chunk.size()));
+        m_events->addEvent(Event(EventTypes::FileChunkSending, this, str, Event::EventFlags::DontFreeData));
+      }
+    });
+  }
 
   // send heartbeat
   setKeepAliveRate(kKeepAliveRate);
@@ -55,6 +95,8 @@ ServerProxy::~ServerProxy()
   setKeepAliveRate(-1.0);
   m_events->removeHandler(EventTypes::StreamInputReady, m_stream->getEventTarget());
   m_events->removeHandler(EventTypes::ClipboardSending, this);
+  m_events->removeHandler(EventTypes::FileDragSending, this);
+  m_events->removeHandler(EventTypes::FileChunkSending, this);
 }
 
 void ServerProxy::resetKeepAliveAlarm()
@@ -139,7 +181,12 @@ ServerProxy::ConnectionResult ServerProxy::parseHandshakeMessage(const uint8_t *
     setOptions();
 
     // handshake is complete
-    m_parser = &ServerProxy::handleMessage;
+    m_parser = &ServerProxy::parseMessage;
+
+    if (const auto missedKeyboardLayouts = m_layoutManager.getMissedLayouts(); !missedKeyboardLayouts.empty()) {
+      LOG_WARN("server layouts missing on this computer: %s", missedKeyboardLayouts.c_str());
+      ipcSendToClient("missingKeyboardLayouts", QString::fromStdString(missedKeyboardLayouts));
+    }
 
     m_client->handshakeComplete();
   }
@@ -190,27 +237,13 @@ ServerProxy::ConnectionResult ServerProxy::parseHandshakeMessage(const uint8_t *
     LOG_ERR("server disconnected due to a protocol error");
     requestRefuseConnection(ProtocolError, "server reported a protocol error");
     return Disconnect;
+  } else if (memcmp(code, kMsgDLanguageSynchronisation, 4) == 0) {
+    setServerLanguages();
   } else {
     return Unknown;
   }
 
   return Okay;
-}
-
-ServerProxy::ConnectionResult ServerProxy::handleMessage(const uint8_t *code)
-{
-  const auto result = parseMessage(code);
-  if (result == ConnectionResult::Okay) {
-    // send a reply.  this is intended to work around a delay when
-    // running a linux server and an OS X (any BSD?) client.  the
-    // client waits to send an ACK (if the system control flag
-    // net.inet.tcp.delayed_ack is 1) in hopes of piggybacking it
-    // on a data packet.  we provide that packet here.  i don't
-    // know why a delayed ACK should cause the server to wait since
-    // TCP_NODELAY is enabled.
-    ProtocolUtil::writef(m_stream, kMsgCNoop);
-  }
-  return result;
 }
 
 ServerProxy::ConnectionResult ServerProxy::parseMessage(const uint8_t *code)
@@ -229,14 +262,26 @@ ServerProxy::ConnectionResult ServerProxy::parseMessage(const uint8_t *code)
     mouseWheel();
   }
 
-  else if (memcmp(code, kMsgDKeyDown1_1, 4) == 0) {
+  else if (memcmp(code, kMsgDKeyDown, 4) == 0) {
     uint16_t id = 0;
     uint16_t mask = 0;
     uint16_t button = 0;
-    ProtocolUtil::readf(m_stream, kMsgDKeyDown1_1 + 4, &id, &mask, &button);
+    ProtocolUtil::readf(m_stream, kMsgDKeyDown + 4, &id, &mask, &button);
     LOG_VERBOSE("recv key down id=0x%08x, mask=0x%04x, button=0x%04x", id, mask, button);
 
     keyDown(id, mask, button, "");
+  }
+
+  else if (memcmp(code, kMsgDKeyDownLang, 4) == 0) {
+    std::string lang;
+    uint16_t id = 0;
+    uint16_t mask = 0;
+    uint16_t button = 0;
+
+    ProtocolUtil::readf(m_stream, kMsgDKeyDownLang + 4, &id, &mask, &button, &lang);
+    LOG_VERBOSE("recv key down id=0x%08x, mask=0x%04x, button=0x%04x, lang=\"%s\"", id, mask, button, lang.c_str());
+
+    keyDown(id, mask, button, lang);
   }
 
   else if (memcmp(code, kMsgDKeyUp, 4) == 0) {
@@ -251,15 +296,8 @@ ServerProxy::ConnectionResult ServerProxy::parseMessage(const uint8_t *code)
     mouseUp();
   }
 
-  else if (memcmp(code, kMsgDKeyRepeat1_1, 4) == 0) {
-    uint16_t id = 0;
-    uint16_t mask = 0;
-    uint16_t count = 0;
-    uint16_t button = 0;
-    ProtocolUtil::readf(m_stream, kMsgDKeyRepeat1_1 + 4, &id, &mask, &count, &button);
-    LOG_VERBOSE("recv key repeat id=0x%08x, mask=0x%04x, count=%d, button=0x%04x", id, mask, count, button);
-
-    keyRepeat(id, mask, count, button, "");
+  else if (memcmp(code, kMsgDKeyRepeat, 4) == 0) {
+    keyRepeat();
   }
 
   else if (memcmp(code, kMsgCKeepAlive, 4) == 0) {
@@ -308,6 +346,18 @@ ServerProxy::ConnectionResult ServerProxy::parseMessage(const uint8_t *code)
     setOptions();
   }
 
+  else if (memcmp(code, kMsgDSecureInputNotification, 4) == 0) {
+    secureInputNotification();
+  }
+
+  else if (memcmp(code, kMsgDDragInfo, 4) == 0) {
+    dragInfoReceived();
+  }
+
+  else if (memcmp(code, kMsgDFileTransfer, 4) == 0) {
+    fileChunkReceived();
+  }
+
   else if (memcmp(code, kMsgCClose, 4) == 0) {
     // server wants us to hangup
     LOG_VERBOSE("recv close");
@@ -320,6 +370,15 @@ ServerProxy::ConnectionResult ServerProxy::parseMessage(const uint8_t *code)
   } else {
     return Unknown;
   }
+
+  // send a reply.  this is intended to work around a delay when
+  // running a linux server and an OS X (any BSD?) client.  the
+  // client waits to send an ACK (if the system control flag
+  // net.inet.tcp.delayed_ack is 1) in hopes of piggybacking it
+  // on a data packet.  we provide that packet here.  i don't
+  // know why a delayed ACK should cause the server to wait since
+  // TCP_NODELAY is enabled.
+  ProtocolUtil::writef(m_stream, kMsgCNoop);
 
   return Okay;
 }
@@ -511,6 +570,8 @@ void ServerProxy::enter()
   m_dxMouse = 0;
   m_dyMouse = 0;
   m_seqNum = seqNum;
+  m_serverLayout = "";
+  m_isUserNotifiedAboutLayoutSyncError = false;
 
   // forward
   m_client->enter(x, y, seqNum, static_cast<KeyModifierMask>(mask), false);
@@ -576,25 +637,45 @@ void ServerProxy::grabClipboard()
 
 void ServerProxy::keyDown(uint16_t id, uint16_t mask, uint16_t button, const std::string &lang)
 {
+  // get mouse up to date
   flushCompressedMouse();
+  setActiveServerLanguage(lang);
 
+  // translate
   KeyID id2 = translateKey(static_cast<KeyID>(id));
   KeyModifierMask mask2 = translateModifierMask(static_cast<KeyModifierMask>(mask));
   if (id2 != static_cast<KeyID>(id) || mask2 != static_cast<KeyModifierMask>(mask))
     LOG_VERBOSE("key down translated to id=0x%08x, mask=0x%04x", id2, mask2);
 
+  // forward
   m_client->keyDown(id2, mask2, button, lang);
 }
 
-void ServerProxy::keyRepeat(uint16_t id, uint16_t mask, uint16_t count, uint16_t button, const std::string &lang)
+void ServerProxy::keyRepeat()
 {
+  // get mouse up to date
   flushCompressedMouse();
 
+  // parse
+  uint16_t id;
+  uint16_t mask;
+  uint16_t count;
+  uint16_t button;
+  std::string lang;
+  ProtocolUtil::readf(m_stream, kMsgDKeyRepeat + 4, &id, &mask, &count, &button, &lang);
+  LOG(
+      (CLOG_VERBOSE "recv key repeat id=0x%08x, mask=0x%04x, count=%d, "
+                    "button=0x%04x, lang=\"%s\"",
+       id, mask, count, button, lang.c_str())
+  );
+
+  // translate
   KeyID id2 = translateKey(static_cast<KeyID>(id));
   KeyModifierMask mask2 = translateModifierMask(static_cast<KeyModifierMask>(mask));
   if (id2 != static_cast<KeyID>(id) || mask2 != static_cast<KeyModifierMask>(mask))
     LOG_VERBOSE("key repeat translated to id=0x%08x, mask=0x%04x", id2, mask2);
 
+  // forward
   m_client->keyRepeat(id2, mask2, count, button, lang);
 }
 
@@ -808,4 +889,73 @@ void ServerProxy::infoAcknowledgment()
 {
   LOG_VERBOSE("recv info acknowledgment");
   m_ignoreMouse = false;
+}
+
+void ServerProxy::secureInputNotification()
+{
+  std::string app;
+  ProtocolUtil::readf(m_stream, kMsgDSecureInputNotification + 4, &app);
+  LOG_INFO("application \"%s\" is blocking the keyboard", app.c_str());
+}
+
+void ServerProxy::setServerLanguages()
+{
+  std::string serverLayout;
+  ProtocolUtil::readf(m_stream, kMsgDLanguageSynchronisation + 4, &serverLayout);
+  m_layoutManager.setRemoteLayouts(serverLayout);
+}
+
+void ServerProxy::setActiveServerLanguage(const std::string_view &language)
+{
+  if (!language.empty() && (language.size() > 0)) {
+    if (m_serverLayout != language) {
+      m_isUserNotifiedAboutLayoutSyncError = false;
+      m_serverLayout = language;
+    }
+
+    if (!m_layoutManager.isLayoutInstalled(m_serverLayout)) {
+      if (!m_isUserNotifiedAboutLayoutSyncError) {
+        LOG_WARN("current server layout is not installed on client");
+        m_isUserNotifiedAboutLayoutSyncError = true;
+      }
+    } else {
+      m_isUserNotifiedAboutLayoutSyncError = false;
+    }
+  } else {
+    LOG_VERBOSE("active server layout is empty");
+  }
+}
+
+void ServerProxy::sendDragInfo(uint32_t fileCount, const char *info, size_t size)
+{
+  std::string data(info, size);
+  LOG_DEBUG("sending drag info to server: count=%u, size=%zu", fileCount, size);
+  ProtocolUtil::writef(m_stream, kMsgDDragInfo, fileCount, &data);
+}
+
+void ServerProxy::sendFileChunk(uint8_t mark, const char *data, size_t dataSize)
+{
+  std::string chunk(data, dataSize);
+  LOG_VERBOSE("sending file chunk to server: mark=%u, size=%zu", mark, dataSize);
+  ProtocolUtil::writef(m_stream, kMsgDFileTransfer, mark, &chunk);
+}
+
+void ServerProxy::dragInfoReceived()
+{
+  uint16_t fileCount = 0;
+  std::string content;
+  ProtocolUtil::readf(m_stream, kMsgDDragInfo + 4, &fileCount, &content);
+  LOG_DEBUG("received drag info from server: count=%u, size=%zu", fileCount, content.size());
+  const auto encoded = QString::fromLatin1(QByteArray(content.data(), static_cast<qsizetype>(content.size())).toBase64());
+  ipcSendToClient(QStringLiteral("dragInfo"), QStringLiteral("%1:%2").arg(fileCount).arg(encoded));
+}
+
+void ServerProxy::fileChunkReceived()
+{
+  uint8_t mark = 0;
+  std::string content;
+  ProtocolUtil::readf(m_stream, kMsgDFileTransfer + 4, &mark, &content);
+  LOG_VERBOSE("received file chunk from server: mark=%u, size=%zu", mark, content.size());
+  const auto encoded = QString::fromLatin1(QByteArray(content.data(), static_cast<qsizetype>(content.size())).toBase64());
+  ipcSendToClient(QStringLiteral("fileChunk"), QStringLiteral("%1:%2").arg(mark).arg(encoded));
 }

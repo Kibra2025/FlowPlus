@@ -80,6 +80,11 @@ public:
     m_mode = mode;
   }
 
+  void sendStartDrag(const QByteArray &payload);
+  void sendClearDrag();
+  void sendFileChunk(uint8_t mark, const QByteArray &chunk);
+  void sendRequestDrop(int x, int y);
+
 Q_SIGNALS:
   void error(deskflow::gui::CoreProcess::Error error);
   void logLine(const QString &line);
@@ -94,6 +99,12 @@ Q_SIGNALS:
   void retryIn(int seconds);
   void peerFingerprint(const QString &fingerprint);
   void missingKeyboardLayouts(const QString &layouts);
+  void screenSwitched(const QString &screenName, bool isPrimary, int x, int y);
+  void clientScreenEntered(int x, int y);
+  void clientScreenLeft();
+  void mouseButtonUp(const QString &screenName, int x, int y);
+  void dragInfoReceived(uint32_t fileCount, const QByteArray &payload);
+  void fileChunkReceived(uint8_t mark, const QByteArray &chunk);
 
 private Q_SLOTS:
   void onProcessFinished(int exitCode, QProcess::ExitStatus);
@@ -105,7 +116,7 @@ private Q_SLOTS:
 private:
   void startForegroundProcess(const QStringList &args);
   void startProcessFromDaemon();
-  void stopForegroundProcess();
+  void stopForegroundProcess() const;
   void stopProcessFromDaemon();
   QPair<bool, QString> persistServerConfig() const;
   void setConnectionState(ConnectionState state);

@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: MIT
 
 create_test(
-  NAME ComputerTests
+  NAME ScreenTests
   DEPENDS gui
-  SOURCE ComputerTests.cpp
+  SOURCE ScreenTests.cpp
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/src/lib/gui"
 )

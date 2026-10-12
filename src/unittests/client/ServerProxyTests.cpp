@@ -35,6 +35,10 @@ public:
     return 0;
   }
 
+  void startNode() override
+  {
+  }
+
   std::vector<std::string> getKeyboardLayoutList() override
   {
     return {"en"};

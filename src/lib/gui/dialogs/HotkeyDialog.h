@@ -7,7 +7,7 @@
 
 #pragma once
 
-#include "common/Hotkey.h"
+#include "Hotkey.h"
 
 #include <QDialog>
 

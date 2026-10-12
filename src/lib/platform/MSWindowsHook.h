@@ -62,9 +62,6 @@ public:
 
   void setMode(EHookMode mode);
 
-  //! Copy the hook's physical key state; false until it has observed an event.
-  static bool getPhysicalKeyState(BYTE keys[256]);
-
   static EHookResult install();
 
   static int uninstall();

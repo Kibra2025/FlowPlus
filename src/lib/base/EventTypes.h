@@ -90,7 +90,7 @@ enum class EventTypes : uint32_t
   */
   SocketDisconnected,
 
-  OsxComputerConfirmSleep,
+  OsxScreenConfirmSleep,
 
   /// This event is sent whenever a server accepts a client.
   ClientListenerAccepted,
@@ -121,7 +121,7 @@ enum class EventTypes : uint32_t
   ClientProxyUnknownFailure,
 
   /** This event is sent when a client computer has connected.
-      The event data is a pointer to ComputerConnectedInfo that indicates the connected computer.
+      The event data is a pointer to ScreenConnectedInfo that indicates the connected computer.
   */
   ServerConnected,
 
@@ -129,12 +129,12 @@ enum class EventTypes : uint32_t
   ServerDisconnected,
 
   /** This event is sent to inform the server to switch computers.
-      The event data is a pointer to SwitchToComputerInfo that indicates the target computer.
+      The event data is a pointer to SwitchToScreenInfo that indicates the target computer.
   */
-  ServerSwitchToComputer,
+  ServerSwitchToScreen,
 
   /// This event is sent to inform the server to toggle computers.  These is no event data.
-  ServerToggleComputer,
+  ServerToggleScreen,
 
   /** This event is sent to inform the server to switch computers.
       The event data is a pointer to SwitchInDirectionInfo that indicates the target direction.
@@ -147,12 +147,12 @@ enum class EventTypes : uint32_t
   ServerKeyboardBroadcast,
 
   /** This event is sent to inform the server to lock the cursor to the active computer or to
-      unlock it. The event data is a pointer to LockCursorToComputerInfo.
+      unlock it. The event data is a pointer to LockCursorToScreenInfo.
   */
-  ServerLockCursorToComputer,
+  ServerLockCursorToScreen,
 
   /// This event is sent when the computer has been switched to a client.
-  ServerComputerSwitched,
+  ServerScreenSwitched,
 
   ServerAppReloadConfig,
   ServerAppForceReconnect,
@@ -166,23 +166,23 @@ enum class EventTypes : uint32_t
   KeyStateKeyRepeat,
 
   /// This event is sent when button is down. Event data is a pointer to ButtonInfo
-  PrimaryComputerButtonDown,
+  PrimaryScreenButtonDown,
 
   /// This event is sent when button is up. Event data is a pointer to ButtonInfo
-  PrimaryComputerButtonUp,
+  PrimaryScreenButtonUp,
 
   /** This event is sent when mouse moves on the server.
       Event data is a pointer to MotionInfo, the values are absolute position.
   */
-  PrimaryComputerMotionOnPrimary,
+  PrimaryScreenMotionOnPrimary,
 
   /** This event is sent when mouse moves on a client.
       Event data is a pointer to MotionInfo, the values are relative motion deltas.
   */
-  PrimaryComputerMotionOnSecondary,
+  PrimaryScreenMotionOnSecondary,
 
   /// This event is sent when mouse wheel is rotated. Event data is a pointer to WheelInfo.
-  PrimaryComputerWheel,
+  PrimaryScreenWheel,
 
   /// This event is sent when screensaver is activated.
   PrimaryScreenSaverActivated,
@@ -191,34 +191,34 @@ enum class EventTypes : uint32_t
   PrimaryScreenSaverDeactivated,
 
   /// This event is sent when hotkey is down. Event data is a pointer to HotKeyInfo.
-  PrimaryComputerHotkeyDown,
+  PrimaryScreenHotkeyDown,
 
   /// This event is sent when hotkey is up. Event data is a pointer to HotKeyInfo.
-  PrimaryComputerHotkeyUp,
+  PrimaryScreenHotkeyUp,
 
   /// This event is sent when fake input begins.
-  PrimaryComputerFakeInputBegin,
+  PrimaryScreenFakeInputBegin,
 
   /// This event is sent when fake input ends.
-  PrimaryComputerFakeInputEnd,
+  PrimaryScreenFakeInputEnd,
 
   /** This event is sent whenever the computer has failed for some reason (e.g. the X Windows
       server died).
   */
-  ComputerError,
+  ScreenError,
 
   /// This event is sent whenever the computer's display shape changes.
-  ComputerShapeChanged,
+  ScreenShapeChanged,
 
   /** This event is sent whenever the system goes to sleep or a user session is deactivated (fast
       user switching).
   */
-  ComputerSuspend,
+  ScreenSuspend,
 
   /** This event is sent whenever the system wakes up or a user session is activated (fast user
       switching).
   */
-  ComputerResume,
+  ScreenResume,
 
   /** This event is sent whenever the clipboard is grabbed by some other application so we
       don't own it anymore. The data is a pointer to a ClipboardInfo.
@@ -232,6 +232,12 @@ enum class EventTypes : uint32_t
 
   /// This event is sent whenever a clipboard chunk is transferred.
   ClipboardSending,
+
+  /// This event is sent whenever file drag metadata is transferred.
+  FileDragSending,
+
+  /// This event is sent whenever a file transfer chunk is transferred.
+  FileChunkSending,
 
   /// Start libei
   EIConnected,

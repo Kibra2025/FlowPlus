@@ -8,7 +8,7 @@
 #pragma once
 
 #include "mt/Thread.h"
-#include "platform/EiComputer.h"
+#include "platform/EiScreen.h"
 
 #include <glib.h>
 #include <libportal/portal.h>
@@ -20,7 +20,7 @@ namespace deskflow {
 class PortalRemoteDesktop
 {
 public:
-  PortalRemoteDesktop(EiComputer *computer, IEventQueue *events);
+  PortalRemoteDesktop(EiScreen *screen, IEventQueue *events);
   ~PortalRemoteDesktop();
 
   void claimClipboard() const;
@@ -52,7 +52,7 @@ private:
   }
 
 private:
-  EiComputer *m_computer;
+  EiScreen *m_screen;
   IEventQueue *m_events;
 
   Thread *m_glibThread;

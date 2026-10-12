@@ -71,16 +71,11 @@ QStringList NetworkMonitor::validAddresses()
     const bool isVirtualType = interface.type() == QNetworkInterface::Virtual;
     const bool isVirtual = isVirtualInterface(interface.humanReadableName()) || isP2P || isVirtualType;
     const auto addressEntries = interface.addressEntries();
-    // link-local is only worth offering when it's a physical interface's only address, e.g. a direct ethernet cable
-    const bool hasNonLinkLocal = std::ranges::any_of(addressEntries, [](const QNetworkAddressEntry &entry) {
-      return !entry.ip().isLoopback() && !entry.ip().isLinkLocal();
-    });
-    const bool skipLinkLocal = isVirtual || hasNonLinkLocal;
 
     for (const auto &entry : addressEntries) {
       const QHostAddress address = entry.ip();
 
-      if (address.isLoopback() || (skipLinkLocal && address.isLinkLocal()) || uniqueAddresses.contains(address)) {
+      if (address.isLinkLocal() || address.isLoopback() || uniqueAddresses.contains(address)) {
         continue;
       }
 
@@ -103,8 +98,6 @@ QStringList NetworkMonitor::validAddresses()
   std::ranges::sort(physicalIP4, [](const QHostAddress &a, const QHostAddress &b) {
     if (a.isPrivateUse() != b.isPrivateUse())
       return a.isPrivateUse();
-    if (a.isLinkLocal() != b.isLinkLocal())
-      return a.isLinkLocal();
     return a.toIPv4Address() < b.toIPv4Address();
   });
 
@@ -115,8 +108,6 @@ QStringList NetworkMonitor::validAddresses()
   std::ranges::sort(physicalIP6, [](const QHostAddress &a, const QHostAddress &b) {
     if (a.isPrivateUse() != b.isPrivateUse())
       return a.isPrivateUse();
-    if (a.isLinkLocal() != b.isLinkLocal())
-      return a.isLinkLocal();
     return a.toString() < b.toString();
   });
 

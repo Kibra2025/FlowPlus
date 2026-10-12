@@ -41,7 +41,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Fallback for when git can not be found
 set(DESKFLOW_VERSION_MAJOR 1)
-set(DESKFLOW_VERSION_MINOR 27)
+set(DESKFLOW_VERSION_MINOR 26)
 set(DESKFLOW_VERSION_PATCH 0)
 set(DESKFLOW_VERSION_TWEAK 0)
 
@@ -93,13 +93,13 @@ endif()
 project(
   deskflow
   VERSION "${DESKFLOW_VERSION_MAJOR}.${DESKFLOW_VERSION_MINOR}.${DESKFLOW_VERSION_PATCH}.${DESKFLOW_VERSION_TWEAK}"
-  DESCRIPTION "Keyboard and mouse sharing utility"
-  HOMEPAGE_URL "https://deskflow.org"
+  DESCRIPTION "Cross-platform keyboard, mouse, and file sharing utility"
+  HOMEPAGE_URL "https://github.com/Kibra2025/FlowPlus"
   LANGUAGES C CXX
 )
 
 # Define Additional "PROJECT" vars for packaging and metadata
-set(CMAKE_PROJECT_PROPER_NAME "Deskflow")
+set(CMAKE_PROJECT_PROPER_NAME "FlowPlus")
 set(CMAKE_PROJECT_VENDOR "${CMAKE_PROJECT_PROPER_NAME} Devs")
 set(CMAKE_PROJECT_COPYRIGHT "(C) 2024-2026 ${CMAKE_PROJECT_VENDOR}")
 set(CMAKE_PROJECT_CONTACT "${CMAKE_PROJECT_PROPER_NAME} <maintainers@deskflow.org>")
@@ -173,7 +173,7 @@ add_definitions(-DQT_NO_KEYWORDS)
 #Find and setup Qt
 find_package(Qt6 ${REQUIRED_QT_VERSION} REQUIRED COMPONENTS Core Widgets Network)
 if(UNIX AND NOT APPLE)
-    find_package(Qt6 ${REQUIRED_QT_VERSION} REQUIRED COMPONENTS DBus)
+    find_package(Qt6 ${REQUIRED_QT_VERSION} REQUIRED COMPONENTS DBus Xml)
 endif()
 
 # Define the location of Qt deployment tool
@@ -229,7 +229,6 @@ if (WIN32)
 elseif(BUILD_OSX_BUNDLE)
   set(CMAKE_INSTALL_BINDIR ${CMAKE_PROJECT_PROPER_NAME}.app/Contents/MacOS)
   set(CMAKE_INSTALL_LICENSE_DIR ${CMAKE_PROJECT_PROPER_NAME}.app/Contents/Resources)
-  set(CMAKE_INSTALL_DOCDIR ${CMAKE_INSTALL_LICENSE_DIR}/docs)
 else()
   set(CMAKE_INSTALL_LICENSE_DIR ${CMAKE_INSTALL_DATADIR}/licenses/${CMAKE_PROJECT_NAME})
   set(CMAKE_INSTALL_I18N_DIR ${CMAKE_INSTALL_DATADIR}/${CMAKE_PROJECT_NAME}/translations)
@@ -242,6 +241,10 @@ add_subdirectory(translations)
 
 add_subdirectory(src)
 
+if(BUILD_INSTALLER)
+    add_subdirectory(deploy)
+endif()
+
 install(
   FILES ${PROJECT_SOURCE_DIR}/LICENSE
   DESTINATION ${CMAKE_INSTALL_LICENSE_DIR}
@@ -252,7 +255,3 @@ install(
   DESTINATION ${CMAKE_INSTALL_LICENSE_DIR}
   RENAME LICENSE_EXCEPTION
 )
-
-if(BUILD_INSTALLER)
-    add_subdirectory(deploy)
-endif()

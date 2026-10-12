@@ -55,10 +55,10 @@ create_test(
 
 if(BUILD_X11_SUPPORT)
   create_test(
-    NAME XkbLayoutParserTests
+    NAME X11LayoutParserTests
     DEPENDS app
     LIBS arch base ${extra_libs}
-    SOURCE XkbLayoutParserTests.cpp
+    SOURCE X11LayoutParserTests.cpp
     WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/src/lib/deskflow"
   )
 endif()

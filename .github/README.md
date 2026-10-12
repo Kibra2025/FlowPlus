@@ -1,14 +1,23 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://github.com/deskflow/deskflow-artwork/blob/main/logo/deskflow-logo-dark-200px.png?raw=true">
   <source media="(prefers-color-scheme: light)" srcset="https://github.com/deskflow/deskflow-artwork/blob/main/logo/deskflow-logo-light-200px.png?raw=true">
-  <img alt="Deskflow" src="https://github.com/user-attachments/assets/f005b958-24df-4f4a-9bfd-4f834dae59d6">
+  <img alt="FlowPlus" src="https://github.com/user-attachments/assets/f005b958-24df-4f4a-9bfd-4f834dae59d6">
 </picture>
 
-**Deskflow** is a free and open source keyboard and mouse sharing app.
+**FlowPlus** (forked from Deskflow) is a free and open source keyboard, mouse, and cross-device file sharing app.
 Use the keyboard, mouse, or trackpad of one computer to control nearby computers,
-and work seamlessly between them.
+and work seamlessly between them — including **cross-device File Drag & Drop powered by LocalSend v2**.
 It's like a software KVM (but without the video).
-TLS encryption is enabled by default. Wayland is supported. Clipboard sharing is supported.
+TLS encryption is enabled by default. Wayland is supported. Clipboard sharing and cross-screen file drag-and-drop are supported.
+
+## Cross-Device File Drag & Drop (LocalSend Integration)
+
+FlowPlus integrates native **LocalSend v2.1** (`53317` TCP/UDP) and an encrypted fallback channel over the FlowPlus TLS stream (`DDRG` / `DFTR` v1.5 protocol):
+
+1. **Drag a file toward the screen edge** connected to another computer.
+2. **Cross the screen boundary**: FlowPlus stages the dragged file(s) via the `EdgeDropSensor` widget and sends `DDRG` drag metadata to the destination computer.
+3. **Visual cursor overlay on the target computer**: While holding the mouse button on the target computer, `DragOverlayWidget` renders a floating badge following the cursor with the file name and size.
+4. **Release the mouse button to drop & transfer**: Releasing the mouse button triggers a direct **LocalSend v2 HTTP upload** (`/api/localsend/v2/prepare-upload` & `/api/localsend/v2/upload`) or automatically falls back to `DFTR` chunks over the FlowPlus TLS connection, then drops the file into the target window (`WM_DROPFILES`), Desktop, or system clipboard (`~/Downloads/FlowPlus`).
 
 > [!TIP]
 >

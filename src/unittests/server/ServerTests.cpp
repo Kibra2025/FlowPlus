@@ -9,18 +9,18 @@
 
 #include "server/Server.h"
 
-void ServerTests::SwitchToComputerInfo_alloc_computer()
+void ServerTests::SwitchToScreenInfo_alloc_screen()
 {
-  auto actual = new Server::SwitchToComputerInfo("test");
-  QCOMPARE(actual->m_computer, "test");
+  auto actual = new Server::SwitchToScreenInfo("test");
+  QCOMPARE(actual->m_screen, "test");
   delete actual;
 }
 
-void ServerTests::KeyboardBroadcastInfo_alloc_stateAndComputers()
+void ServerTests::KeyboardBroadcastInfo_alloc_stateAndSceens()
 {
   auto info = new Server::KeyboardBroadcastInfo(Server::KeyboardBroadcastInfo::State::kOn, "test");
   QCOMPARE(info->m_state, Server::KeyboardBroadcastInfo::State::kOn);
-  QCOMPARE(info->m_computers, "test");
+  QCOMPARE(info->m_screens, "test");
   delete info;
 }
 

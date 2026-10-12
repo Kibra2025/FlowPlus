@@ -63,23 +63,20 @@ void IpcServer::handleReadyRead()
   const auto clientSocket = qobject_cast<QLocalSocket *>(sender());
   LOG_VERBOSE("%s ipc server ready to read data", m_typeName.constData());
 
-  QByteArray data = clientSocket->readAll();
-  if (data.isEmpty()) {
+  QByteArray chunk = clientSocket->readAll();
+  if (chunk.isEmpty()) {
     LOG_WARN("%s ipc server got empty message", m_typeName.constData());
     return;
   }
 
-  // we don't handle incomplete messages yet; each socket read must have delimiters.
-  if (!data.contains('\n')) {
-    LOG_WARN("%s ipc server got incomplete message: %s", m_typeName.constData(), data.constData());
-    return;
-  }
+  QByteArray &buffer = m_readBuffers[clientSocket];
+  buffer.append(chunk);
 
   // each message is delimited by a newline to keep the protocol super simple.
-  while (data.contains('\n')) {
-    const auto index = data.indexOf('\n');
-    QByteArray messageData = data.left(index);
-    data.remove(0, index + 1);
+  while (buffer.contains('\n')) {
+    const auto index = buffer.indexOf('\n');
+    QByteArray messageData = buffer.left(index);
+    buffer.remove(0, index + 1);
     QString message = QString::fromUtf8(messageData);
     processMessage(clientSocket, message);
   }
@@ -90,19 +87,16 @@ void IpcServer::handleDisconnected()
   const auto clientSocket = qobject_cast<QLocalSocket *>(sender());
   LOG_DEBUG("%s ipc server client disconnected", m_typeName.constData());
   m_clients.remove(clientSocket);
+  m_readBuffers.remove(clientSocket);
   clientSocket->deleteLater();
 }
 
 void IpcServer::handleErrorOccurred()
 {
   const auto clientSocket = qobject_cast<QLocalSocket *>(sender());
-  if (clientSocket->error() == QLocalSocket::PeerClosedError) {
-    LOG_DEBUG("%s ipc server client closed connection", m_typeName.constData());
-  } else {
-    LOG_ERR("%s ipc server client error: %s", m_typeName.constData(), clientSocket->errorString().toUtf8().constData());
-  }
-
+  LOG_ERR("%s ipc server client error: %s", m_typeName.constData(), clientSocket->errorString().toUtf8().constData());
   m_clients.remove(clientSocket);
+  m_readBuffers.remove(clientSocket);
   clientSocket->deleteLater();
 }
 

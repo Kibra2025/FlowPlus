@@ -1,6 +1,5 @@
 /*
  * Deskflow -- mouse and keyboard sharing utility
- * SPDX-FileCopyrightText: (C) 2026 Deskflow Developers
  * SPDX-FileCopyrightText: (C) 2012 - 2016 Synergy App Ltd
  * SPDX-FileCopyrightText: (C) 2002 Chris Schoeneman
  * SPDX-License-Identifier: GPL-2.0-only WITH LicenseRef-OpenSSL-Exception
@@ -12,12 +11,14 @@
 #include "common/PlatformInfo.h"
 
 #if WINAPI_XWINDOWS
+#include "deskflow/unix/X11LayoutsParser.h"
 #include <X11/XKBlib.h>
-#include <deskflow/unix/XkbLayoutsParser.h>
-#elif defined(Q_OS_MACOS)
+#elif defined(Q_OS_MAC)
 #include <Carbon/Carbon.h>
 #include <platform/OSXAutoTypes.h>
 #endif
+
+#include <filesystem>
 
 AppUtilUnix::AppUtilUnix(const IEventQueue *)
 {
@@ -34,14 +35,29 @@ int AppUtilUnix::run()
   return app().runInner(&startStatic);
 }
 
+void AppUtilUnix::startNode()
+{
+  app().startNode();
+}
+
 std::vector<std::string> AppUtilUnix::getKeyboardLayoutList()
 {
   std::vector<std::string> layoutLangCodes;
 
 #if WINAPI_XWINDOWS
-  layoutLangCodes = XkbLayoutsParser::getXkbLanguageList();
+  // Check /usr/local first used on bsd and some systems
+  std::vector<std::string> evdev_candidate = {
+      "/usr/share/X11/xkb/rules/evdev.xml",       // Linux
+      "/usr/local/share/X11/xkb/rules/evdev.xml", // FreeBSD, DragonFlyBSD
+      "/usr/X11R7/lib/X11/xkb/rules/evdev.xml",   // NetBSD
+      "/usr/X11R6/share/X11/xkb/rules/evdev.xml", // OpenBSD
+  };
 
-#elif defined(Q_OS_MACOS)
+  for (auto it = evdev_candidate.begin(); it != evdev_candidate.end() && !std::filesystem::exists(m_evdev = *it); it++)
+    ;
+  layoutLangCodes = X11LayoutsParser::getX11LanguageList(m_evdev);
+
+#elif defined(Q_OS_MAC)
   CFStringRef keys[] = {kTISPropertyInputSourceCategory};
   CFStringRef values[] = {kTISCategoryKeyboardInputSource};
   AutoCFDictionary dict(
@@ -61,7 +77,7 @@ std::vector<std::string> AppUtilUnix::getKeyboardLayoutList()
       layoutLanguages = (CFArrayRef)TISGetInputSourceProperty(keyboardLayout, kTISPropertyInputSourceLanguages);
     }
     char temporaryCString[128] = {0};
-    for (CFIndex index = 0; layoutLanguages && index < CFArrayGetCount(layoutLanguages); index++) {
+    for (CFIndex index = 0; index < CFArrayGetCount(layoutLanguages) && layoutLanguages; index++) {
       auto languageCode = (CFStringRef)CFArrayGetValueAtIndex(layoutLanguages, index);
       if (!languageCode || !CFStringGetCString(languageCode, temporaryCString, 128, kCFStringEncodingUTF8)) {
         continue;
@@ -135,9 +151,9 @@ std::string AppUtilUnix::getCurrentLanguageCode()
   XFree(kbdDescr);
   XCloseDisplay(display);
 
-  result = XkbLayoutsParser::convertLayoutToISO(result);
+  result = X11LayoutsParser::convertLayoutToISO(m_evdev, result);
 
-#elif defined(Q_OS_MACOS)
+#elif defined(Q_OS_MAC)
   AutoTISInputSourceRef source(nullptr, CFRelease);
   CFArrayRef layoutLanguages = nullptr;
   {
@@ -147,7 +163,7 @@ std::string AppUtilUnix::getCurrentLanguageCode()
       layoutLanguages = (CFArrayRef)TISGetInputSourceProperty(source.get(), kTISPropertyInputSourceLanguages);
   }
   char temporaryCString[128] = {0};
-  for (CFIndex index = 0; layoutLanguages && index < CFArrayGetCount(layoutLanguages); index++) {
+  for (CFIndex index = 0; index < CFArrayGetCount(layoutLanguages) && layoutLanguages; index++) {
     auto languageCode = (CFStringRef)CFArrayGetValueAtIndex(layoutLanguages, index);
     if (!languageCode || !CFStringGetCString(languageCode, temporaryCString, 128, kCFStringEncodingUTF8)) {
       continue;

@@ -66,7 +66,6 @@ SecureSocket::SecureSocket(
 SecureSocket::~SecureSocket()
 {
   freeSSL();
-  free(m_writeStaticBuffer);
 }
 
 void SecureSocket::close()
@@ -175,22 +174,26 @@ TCPSocket::JobResult SecureSocket::doRead()
 TCPSocket::JobResult SecureSocket::doWrite()
 {
   using enum JobResult;
+  static bool s_retry = false;
+  static int s_retrySize = 0;
+  static int s_staticBufferSize = 0;
+  static void *s_staticBuffer = nullptr;
 
   // write data
   int bufferSize = 0;
   int bytesWrote = 0;
   int status = 0;
 
-  if (m_writeRetry) {
-    bufferSize = m_writeRetrySize;
+  if (s_retry) {
+    bufferSize = s_retrySize;
   } else {
     bufferSize = m_outputBuffer.getSize();
     if (bufferSize != 0) {
-      if (bufferSize > m_writeStaticBufferSize) {
-        m_writeStaticBuffer = realloc(m_writeStaticBuffer, bufferSize);
-        m_writeStaticBufferSize = bufferSize;
+      if (bufferSize > s_staticBufferSize) {
+        s_staticBuffer = realloc(s_staticBuffer, bufferSize);
+        s_staticBufferSize = bufferSize;
       }
-      memcpy(m_writeStaticBuffer, m_outputBuffer.peek(bufferSize), bufferSize);
+      memcpy(s_staticBuffer, m_outputBuffer.peek(bufferSize), bufferSize);
     }
   }
 
@@ -199,14 +202,14 @@ TCPSocket::JobResult SecureSocket::doWrite()
   }
 
   if (isSecureReady()) {
-    status = secureWrite(m_writeStaticBuffer, bufferSize, bytesWrote);
+    status = secureWrite(s_staticBuffer, bufferSize, bytesWrote);
     if (status > 0) {
-      m_writeRetry = false;
+      s_retry = false;
     } else if (status < 0) {
       return Break;
     } else if (status == 0) {
-      m_writeRetry = true;
-      m_writeRetrySize = bufferSize;
+      s_retry = true;
+      s_retrySize = bufferSize;
       return New;
     }
   } else {
@@ -229,7 +232,7 @@ int SecureSocket::secureRead(void *buffer, int size, int &read)
     LOG_VERBOSE("reading secure socket");
     read = SSL_read(m_ssl->m_ssl, buffer, size);
 
-    int retry = 0;
+    static int retry;
 
     // Check result will cleanup the connection in the case of a fatal
     checkResult(read, retry);
@@ -257,7 +260,7 @@ int SecureSocket::secureWrite(const void *buffer, int size, int &wrote)
 
     wrote = SSL_write(m_ssl->m_ssl, buffer, size);
 
-    int retry = 0;
+    static int retry;
 
     // Check result will cleanup the connection in the case of a fatal
     checkResult(wrote, retry);
@@ -553,8 +556,8 @@ void SecureSocket::checkResult(int status, int &retry)
     break;
 
   case SSL_ERROR_WANT_WRITE:
-    // SSL_write() bypasses writeSocket(), so reset the poll hint ourselves.
-    ARCH->resetPollWriteOnSocket(getSocket());
+    // Need to make sure the socket is known to be writable so the impending
+    // poll action actually triggers on a write.
     setWritable(true);
     retry++;
     LOG_VERBOSE("want to write, error=%d, attempt=%d", errorCode, retry);

@@ -9,7 +9,7 @@
 
 #include <QPushButton>
 
-#include "common/KeySequence.h"
+#include "KeySequence.h"
 
 class KeySequenceWidget : public QPushButton
 {

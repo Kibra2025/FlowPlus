@@ -9,9 +9,9 @@
 #pragma once
 
 #include "common/Constants.h"
-#include "common/Hotkey.h"
-#include "gui/config/ComputerConfig.h"
-#include "gui/config/ComputerList.h"
+#include "gui/Hotkey.h"
+#include "gui/config/ScreenConfig.h"
+#include "gui/config/ScreenList.h"
 
 #include <QList>
 
@@ -21,7 +21,7 @@ class QString;
 class QFile;
 class ServerConfigDialog;
 
-class ServerConfig : public ComputerConfig
+class ServerConfig : public ScreenConfig
 {
   friend class ServerConfigDialog;
   friend QTextStream &operator<<(QTextStream &outStream, const ServerConfig &config);
@@ -32,9 +32,9 @@ public:
 
   bool operator==(const ServerConfig &sc) const;
 
-  const ComputerList &computers() const
+  const ScreenList &screens() const
   {
-    return m_computers;
+    return m_Screens;
   }
 
   //
@@ -46,11 +46,11 @@ public:
   }
 
   bool save(const QString &fileName) const;
-  bool computerExists(const QString &computerName) const;
+  bool screenExists(const QString &screenName) const;
   void save(QFile &file) const;
   bool isFull() const;
   void commit();
-  int numComputers() const;
+  int numScreens() const;
   QString getServerName() const;
   void updateServerName();
   QString configFile() const;
@@ -59,19 +59,19 @@ public:
 
 private:
   void recall();
-  void setupComputers();
+  void setupScreens();
   QSettingsProxy &settings();
-  ComputerList &computers()
+  ScreenList &screens()
   {
-    return m_computers;
+    return m_Screens;
   }
-  void setComputers(const ComputerList &computers)
+  void setScreens(const ScreenList &screens)
   {
-    m_computers = computers;
+    m_Screens = screens;
   }
-  void addComputer(const Computer &computer)
+  void addScreen(const Screen &screen)
   {
-    m_computers.append(computer);
+    m_Screens.append(screen);
   }
   void setConfigFile(const QString &configFile) const;
   void setUseExternalConfig(bool useExternalConfig) const;
@@ -79,14 +79,14 @@ private:
   {
     return m_Hotkeys;
   }
-  int adjacentComputerIndex(int idx, int deltaColumn, int deltaRow) const;
-  bool findComputerName(const QString &name, int &index);
+  int adjacentScreenIndex(int idx, int deltaColumn, int deltaRow) const;
+  bool findScreenName(const QString &name, int &index);
   bool fixNoServer(const QString &name, int &index);
 
 private:
   HotkeyList m_Hotkeys;
 
-  ComputerList m_computers;
+  ScreenList m_Screens;
   int m_columns;
   int m_rows;
 };
