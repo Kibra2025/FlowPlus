@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: MIT
 
 version = 1
-SPDX-PackageName = "deskflow"
-SPDX-PackageSupplier = "Deskflow Devs"
-SPDX-PackageDownloadLocation = "https://github.com/deskflow/deskflow"
+SPDX-PackageName = "FlowPlus"
+SPDX-PackageSupplier = "FlowPlus Contributors"
+SPDX-PackageDownloadLocation = "https://github.com/Kibra2025/FlowPlus"
 
 [[annotations]]
 path = [
@@ -19,7 +19,7 @@ path = [
  , "**/*.md"
  , "docs/**"
  , "deploy/linux/flatpak/**"
- , "deploy/linux/org.deskflow.deskflow.metainfo.xml"
+ , "deploy/linux/io.github.kibra2025.FlowPlus.metainfo.xml"
  , "deploy/windows/wix-patch.xml.in"
  , "src/apps/deskflow-client/deskflow-client.exe.manifest"
  , "src/apps/deskflow-core/deskflow-core.exe.manifest"
@@ -65,3 +65,32 @@ path = [
 ]
 SPDX-FileCopyrightText = "Deskflow Developers"
 SPDX-License-Identifier = "GPL-2.0-only WITH LicenseRef-OpenSSL-Exception"
+
+[[annotations]]
+path = [
+   "src/apps/res/flowplus*.svg"
+ , "src/apps/res/flowplus.ico"
+ , "src/apps/res/FlowPlus.icns"
+ , "deploy/linux/io.github.kibra2025.FlowPlus.png"
+ , "deploy/mac/flowplus-dmg*"
+ , "deploy/windows/flowplus-wix*.png"
+ , "README.md"
+ , "NOTICE.md"
+ , "THIRD_PARTY_NOTICES.md"
+ , "docs/ARCHITECTURE.md"
+ , "docs/TESTING.md"
+]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 FlowPlus Contributors"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = "docs/third-party/LocalSend-LICENSE.txt"
+precedence = "override"
+SPDX-FileCopyrightText = "2022-2026 Tien Do Nam"
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = "src/apps/res/icons/deskflow-**/**@*"
+SPDX-FileCopyrightText = "Kde Breeze Icons"
+SPDX-License-Identifier = "LGPL-2.1-only"

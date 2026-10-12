@@ -524,6 +524,12 @@ void ProtocolUtil::readBytes(deskflow::IStream *stream, uint32_t len, std::strin
     len = read4BytesInt(stream);
   }
 
+  // Check the embedded length too, before allocating. For "%s" the format
+  // length is zero, so checking only the format specifier leaves this unchecked.
+  if (len > PROTOCOL_MAX_STRING_LENGTH) {
+    throw BadClientException("Too long message received");
+  }
+
   // use a fixed size buffer if its big enough
   const bool useFixed = (len <= sizeof(buffer));
 

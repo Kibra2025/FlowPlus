@@ -59,6 +59,9 @@ static const OptionID kOptionDefaultLockToScreenState = OPTION_CODE("LTSS");
 static const OptionID kOptionDisableLockToScreen = OPTION_CODE("DLTS");
 static const OptionID kOptionClipboardSharing = OPTION_CODE("CLPS");
 static const OptionID kOptionClipboardSharingSize = OPTION_CODE("CLSZ");
+// Unknown options are ignored by upstream peers. Only peers acknowledging this
+// extension may receive FlowPlus's routed DDRG/DFTR payloads.
+static const OptionID kOptionFlowPlusTransfers = OPTION_CODE("FPLS");
 //@}
 
 //! @name Screen switch corner masks

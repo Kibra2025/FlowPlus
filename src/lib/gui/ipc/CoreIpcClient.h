@@ -20,10 +20,9 @@ public:
   explicit CoreIpcClient(QObject *parent = nullptr);
 
   void sendStop();
-  void sendStartDrag(const QByteArray &payload);
+  bool sendStartDrag(const QByteArray &payload, const QString &targetScreen = {});
   void sendClearDrag();
-  void sendFileChunk(uint8_t mark, const QByteArray &chunk);
-  void sendRequestDrop(int x, int y);
+  bool sendFileChunk(uint8_t mark, const QByteArray &chunk, const QString &targetScreen = {});
 
 Q_SIGNALS:
   void commandReceived(const QString &command, const QString &args);

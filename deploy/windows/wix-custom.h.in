@@ -6,7 +6,7 @@
 
 #pragma once
 
-const auto kAppId = "@CMAKE_PROJECT_NAME@";
+const auto kAppId = "@FLOWPLUS_APP_ID@";
 const auto kRegKey = "SOFTWARE\\Microsoft\\VisualStudio\\14.0\\VC\\Runtimes\\@BUILD_ARCHITECTURE@";
 
 // clang-format off

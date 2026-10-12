@@ -21,7 +21,7 @@ list(APPEND CPACK_GENERATOR "7Z")
 
 # If Wix4+ is installed make a package
 find_program(WIX_APP wix)
-if (NOT "${WIX_APP}" STREQUAL "")
+if(WIX_APP)
   set(CPACK_WIX_VERSION 4)
   set(CPACK_WIX_ARCHITECTURE ${BUILD_ARCHITECTURE})
   list(APPEND CPACK_GENERATOR "WIX")
@@ -31,15 +31,16 @@ set(CPACK_PACKAGE_NAME "${CMAKE_PROJECT_PROPER_NAME}")
 
 # Menu Entry
 set(CPACK_WIX_PROGRAM_MENU_FOLDER "${CMAKE_PROJECT_PROPER_NAME}")
-set(CPACK_PACKAGE_EXECUTABLES "deskflow" "${CMAKE_PROJECT_PROPER_NAME}")
+set(CPACK_PACKAGE_EXECUTABLES "${FLOWPLUS_APP_ID}" "${CMAKE_PROJECT_PROPER_NAME}")
 
 # Default Install Path
 set(CPACK_PACKAGE_INSTALL_DIRECTORY "${CMAKE_PROJECT_PROPER_NAME}")
 
 # Wix Specific Values
-set(CPACK_WIX_UPGRADE_GUID "027D1C8A-E7A5-4754-BB93-B2D45BFDBDC8")
-set(CPACK_WIX_UI_BANNER "${MY_DIR}/wix-banner.png")
-set(CPACK_WIX_UI_DIALOG "${MY_DIR}/wix-dialog.png")
+# FlowPlus must not be treated as an upgrade of an installed Deskflow package.
+set(CPACK_WIX_UPGRADE_GUID "04E99CC9-3B72-4B1A-B15A-29C3C252031A")
+set(CPACK_WIX_UI_BANNER "${MY_DIR}/flowplus-wix-banner.png")
+set(CPACK_WIX_UI_DIALOG "${MY_DIR}/flowplus-wix-dialog.png")
 
 # Required Extra Extenstions
 list(APPEND CPACK_WIX_EXTENSIONS "WixToolset.Util.wixext" "WixToolset.Firewall.wixext")

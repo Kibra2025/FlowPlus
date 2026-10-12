@@ -7,6 +7,7 @@
 #include "server/ClientProxy1_5.h"
 
 #include "base/Log.h"
+#include "deskflow/DeskflowException.h"
 #include "deskflow/ProtocolTypes.h"
 #include "deskflow/ProtocolUtil.h"
 #include "deskflow/StreamChunker.h"
@@ -59,18 +60,20 @@ void ClientProxy1_5::fileChunkReceived() const
 {
   uint8_t mark = 0;
   std::string content;
-  ProtocolUtil::readf(getStream(), kMsgDFileTransfer + 4, &mark, &content);
+  if (!ProtocolUtil::readf(getStream(), kMsgDFileTransfer + 4, &mark, &content)) {
+    throw BadClientException("Invalid file chunk");
+  }
   LOG_VERBOSE("received file chunk from client \"%s\": mark=%u, size=%zu", getName().c_str(), mark, content.size());
-  const auto encoded = QString::fromLatin1(QByteArray(content.data(), static_cast<qsizetype>(content.size())).toBase64());
-  ipcSendToClient(QStringLiteral("fileChunk"), QStringLiteral("%1:%2").arg(mark).arg(encoded));
+  m_server->receiveFileChunk(getName(), mark, QByteArray::fromStdString(content));
 }
 
 void ClientProxy1_5::dragInfoReceived() const
 {
   uint16_t fileCount = 0;
   std::string content;
-  ProtocolUtil::readf(getStream(), kMsgDDragInfo + 4, &fileCount, &content);
+  if (!ProtocolUtil::readf(getStream(), kMsgDDragInfo + 4, &fileCount, &content)) {
+    throw BadClientException("Invalid drag metadata");
+  }
   LOG_DEBUG("received drag info from client \"%s\": count=%u, size=%zu", getName().c_str(), fileCount, content.size());
-  const auto encoded = QString::fromLatin1(QByteArray(content.data(), static_cast<qsizetype>(content.size())).toBase64());
-  ipcSendToClient(QStringLiteral("dragInfo"), QStringLiteral("%1:%2").arg(fileCount).arg(encoded));
+  m_server->receiveDragInfo(getName(), fileCount, QByteArray::fromStdString(content));
 }

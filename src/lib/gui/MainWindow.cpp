@@ -173,6 +173,10 @@ MainWindow::~MainWindow()
   }
 
   m_guiDupeChecker->close();
+  // The transfer manager references the core, which is a member rather than a
+  // QObject child. Destroy the manager while that member is still alive.
+  delete m_dragDropManager;
+  m_dragDropManager = nullptr;
   m_coreProcess.cleanup();
 }
 
@@ -369,6 +373,7 @@ void MainWindow::settingsChanged(const QString &key)
       updateFingerprintButton();
     }
     updateSecurityIcon(m_statusBar->securityIconVisible());
+    updateFileTransferAvailability();
     return;
   }
 }
@@ -398,8 +403,7 @@ void MainWindow::coreProcessError(CoreProcess::Error error)
                        .arg(kCoreBinName);
 
     if (Settings::value(Settings::Core::CoreMode) == Settings::CoreMode::Server) {
-      const auto mode =
-          Settings::value(Settings::Server::ExternalConfig).toBool() ? tr("read") : tr("read and write");
+      const auto mode = Settings::value(Settings::Server::ExternalConfig).toBool() ? tr("read") : tr("read and write");
       message.append(tr("\nAdditionally, check you are able to %1 the server config file: %2")
                          .arg(mode, Settings::serverConfigFile()));
     }
@@ -743,14 +747,14 @@ void MainWindow::saveSettings() const
 
 void MainWindow::setTrayIcon()
 {
-  static const auto fallbackPath = QStringLiteral(":/icons/%1-%2/apps/64/%3");
+  static const auto fallbackPath = QStringLiteral(":/icons/%1-%2/apps/64/%3.svg");
 
   QString themeIcon = kRevFqdnName;
   if (!Settings::value(Settings::Gui::SymbolicTrayIcon).toBool()) {
     if (deskflow::platform::isMac())
       m_trayIcon->setIcon(QIcon::fromTheme(themeIcon));
     else
-      m_trayIcon->setIcon(QIcon(fallbackPath.arg(kAppId, QStringLiteral("dark"), themeIcon)));
+      m_trayIcon->setIcon(QIcon(fallbackPath.arg(kIconThemeId, QStringLiteral("dark"), themeIcon)));
     return;
   }
 
@@ -763,11 +767,11 @@ void MainWindow::setTrayIcon()
     );
     const QString theme = settings.value(QStringLiteral("SystemUsesLightTheme"), 1).toBool() ? QStringLiteral("light")
                                                                                              : QStringLiteral("dark");
-    m_trayIcon->setIcon(QIcon(fallbackPath.arg(kAppId, theme, themeIcon)));
+    m_trayIcon->setIcon(QIcon(fallbackPath.arg(kIconThemeId, theme, themeIcon)));
     return;
   }
 
-  auto icon = QIcon::fromTheme(themeIcon, QIcon(fallbackPath.arg(kAppId, iconMode(), themeIcon)));
+  auto icon = QIcon::fromTheme(themeIcon, QIcon(fallbackPath.arg(kIconThemeId, iconMode(), themeIcon)));
   icon.setIsMask(true);
   m_trayIcon->setIcon(icon);
 }
@@ -1312,17 +1316,14 @@ void MainWindow::setupFileTransferBar()
   barLayout->setContentsMargins(6, 4, 6, 4);
   barLayout->setSpacing(8);
 
-  m_lblTransferStatus = new QLabel(
-      tr("FlowPlus LocalSend attivo (porta %1) — Trascina un file oltre il bordo schermo o qui sopra per inviarlo")
-          .arg(m_dragDropManager->localSendService()->serverPort()),
-      barWidget
-  );
+  m_lblTransferStatus = new QLabel(barWidget);
+  m_lblTransferStatus->setTextFormat(Qt::PlainText);
   m_lblTransferStatus->setWordWrap(true);
 
-  m_btnSendFiles = new QPushButton(tr("Invia File..."), barWidget);
+  m_btnSendFiles = new QPushButton(tr("Send files..."), barWidget);
   m_btnSendFiles->setIcon(QIcon::fromTheme(QStringLiteral("document-open")));
 
-  m_btnOpenDownloads = new QPushButton(tr("Cartella Ricevuti"), barWidget);
+  m_btnOpenDownloads = new QPushButton(tr("Received files"), barWidget);
   m_btnOpenDownloads->setIcon(QIcon::fromTheme(QStringLiteral("folder-open")));
 
   barLayout->addWidget(m_lblTransferStatus, 1);
@@ -1330,6 +1331,23 @@ void MainWindow::setupFileTransferBar()
   barLayout->addWidget(m_btnOpenDownloads);
 
   ui->topLevelWidget->layout()->addWidget(barWidget);
+  m_dragDropManager->setKnownPeerAddress(Settings::value(Settings::Client::RemoteHost).toString());
+  updateFileTransferAvailability();
+
+  connect(&m_coreProcess, &CoreProcess::fileTransferPeersChanged, this, [this](const QStringList &peers) {
+    m_fileTransferPeers = peers;
+    updateFileTransferAvailability();
+  });
+  connect(&m_coreProcess, &CoreProcess::processStateChanged, this, [this](auto state) {
+    if (state != deskflow::core::ProcessState::Started)
+      m_fileTransferPeers.clear();
+    updateFileTransferAvailability();
+  });
+  connect(&m_coreProcess, &CoreProcess::connectionStateChanged, this, [this](auto state) {
+    if (state == deskflow::core::ConnectionState::Disconnected)
+      m_fileTransferPeers.clear();
+    updateFileTransferAvailability();
+  });
 
   connect(m_dragDropManager, &transfer::DragDropManager::statusMessage, this, [this](const QString &msg) {
     if (m_lblTransferStatus) {
@@ -1339,7 +1357,7 @@ void MainWindow::setupFileTransferBar()
   });
 
   connect(m_btnSendFiles, &QPushButton::clicked, this, [this]() {
-    const QStringList files = QFileDialog::getOpenFileNames(this, tr("Seleziona file da inviare con FlowPlus"));
+    const QStringList files = QFileDialog::getOpenFileNames(this, tr("Select files to send with FlowPlus"));
     if (!files.isEmpty()) {
       m_dragDropManager->triggerImmediateSend(files);
     }
@@ -1352,12 +1370,34 @@ void MainWindow::setupFileTransferBar()
   });
 }
 
+void MainWindow::updateFileTransferAvailability()
+{
+  if (!m_btnSendFiles || !m_lblTransferStatus)
+    return;
+
+  const bool secure = TlsUtility::isEnabled() && Settings::value(Settings::Security::CheckPeers).toBool();
+  const bool connected = m_coreProcess.isStarted() && !m_fileTransferPeers.isEmpty() &&
+                         (m_coreProcess.mode() == Settings::CoreMode::Server ||
+                          m_coreProcess.connectionState() == deskflow::core::ConnectionState::Connected);
+  m_btnSendFiles->setEnabled(secure && connected);
+  if (!secure) {
+    m_lblTransferStatus->setText(tr("Enable TLS and peer fingerprint checking to transfer files"));
+  } else if (!connected) {
+    m_lblTransferStatus->setText(tr("Connect a verified FlowPlus peer to send files"));
+  } else if (!m_dragDropManager->localSendService()->isRunning()) {
+    m_lblTransferStatus->setText(tr("Direct file transfer is unavailable; transfers use the FlowPlus TLS connection"));
+  } else {
+    m_lblTransferStatus->setText(tr("Drag files to a connected screen, or choose Send files"));
+  }
+}
+
 void MainWindow::dragEnterEvent(QDragEnterEvent *event)
 {
   if (event->mimeData() && event->mimeData()->hasUrls()) {
     for (const QUrl &url : event->mimeData()->urls()) {
-      if (url.isLocalFile()) {
-        event->acceptProposedAction();
+      if (url.isLocalFile() && QFileInfo(url.toLocalFile()).isFile()) {
+        event->setDropAction(Qt::CopyAction);
+        event->accept();
         return;
       }
     }
@@ -1381,7 +1421,8 @@ void MainWindow::dropEvent(QDropEvent *event)
   }
 
   if (!files.isEmpty() && m_dragDropManager) {
-    event->acceptProposedAction();
+    event->setDropAction(Qt::CopyAction);
+    event->accept();
     m_dragDropManager->triggerImmediateSend(files);
   }
 }

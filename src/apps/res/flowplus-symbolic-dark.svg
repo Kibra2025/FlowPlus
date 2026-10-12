@@ -1,0 +1,10 @@
+<!-- SPDX-FileCopyrightText: 2026 FlowPlus Contributors -->
+<!-- SPDX-License-Identifier: MIT -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect x="4" y="4" width="56" height="56" rx="14" fill="none"/>
+  <g fill="none" stroke="#eff0f1" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14 29C22 18 31 18 39 24L47 28M40 28H47V21"/>
+    <path d="M43 14H51M47 10V18" stroke-width="3"/>
+  </g>
+  <path d="M50 36C42 47 33 47 25 41L17 37M24 37H17V44" fill="none" stroke="#eff0f1" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

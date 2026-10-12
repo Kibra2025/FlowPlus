@@ -17,6 +17,9 @@
 #include "deskflow/MouseTypes.h"
 #include "server/Config.h"
 
+#include <QByteArray>
+#include <QElapsedTimer>
+#include <QMetaObject>
 #include <climits>
 #include <map>
 #include <set>
@@ -199,10 +202,19 @@ public:
   void getClients(std::vector<std::string> &list) const;
   void sendConnectedClientsIpc() const;
   size_t getMaximumClipboardSizeBytes() const;
+  void receiveDragInfo(const std::string &source, uint16_t count, const QByteArray &wire);
+  void receiveFileChunk(const std::string &source, uint8_t mark, const QByteArray &wire);
 
   //@}
 
 private:
+  void routeTransfer(const std::string &source, bool fileChunk, uint16_t number, const QByteArray &wire);
+  void cancelStagedDrag();
+  std::vector<QMetaObject::Connection> m_transferIpcConnections;
+  QByteArray m_remoteDragWire;
+  std::string m_remoteDragSource;
+  QElapsedTimer m_remoteDragAge;
+  std::set<std::string> m_fileTransferPeers;
   // get canonical name of client
   std::string getName(const BaseClientProxy *) const;
 

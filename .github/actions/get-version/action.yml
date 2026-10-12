@@ -1,15 +1,20 @@
 name: "Get version"
-description: "Gets the version number from GitHub environment"
+description: "Gets the FlowPlus version and package label"
 
 runs:
   using: "composite"
-
   steps:
     - run: |
-        echo "DESKFLOW_VERSION=$(git describe --long | sed 's/-/./g;s/v//g'  | grep -o '^[0-9]*.[0-9]*.[0-9]*.[0-9]*')">> $GITHUB_ENV
-        if [[ "$GITHUB_REF" == *"tags/v"* ]]; then
-          echo "DESKFLOW_PACKAGE_VERSION=$(echo $GITHUB_REF | sed 's,refs/tags/v,,g')">> $GITHUB_ENV
+        description=$(git describe --tags --long --match 'v*' 2>/dev/null || true)
+        if [[ "$description" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)-([0-9]+)-g ]]; then
+          version="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}.${BASH_REMATCH[4]}"
         else
-          echo "DESKFLOW_PACKAGE_VERSION=continuous">> $GITHUB_ENV
+          version="1.26.0.9999"
+        fi
+        echo "DESKFLOW_VERSION=$version" >> "$GITHUB_ENV"
+        if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+          echo "DESKFLOW_PACKAGE_VERSION=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_ENV"
+        else
+          echo "DESKFLOW_PACKAGE_VERSION=continuous" >> "$GITHUB_ENV"
         fi
       shell: bash

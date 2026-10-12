@@ -1,8 +1,8 @@
 # SPDX-FileCopyrightText: (C) 2024 Deskflow Developers
 # SPDX-License-Identifier: MIT
-# Maintainer: Deskflow Developers
+# Maintainer: FlowPlus Contributors
 
-_basename=@CMAKE_PROJECT_NAME@
+_basename=@FLOWPLUS_APP_ID@
 pkgname=${_basename}-git
 pkgver=@CMAKE_PROJECT_VERSION@
 pkgrel=1

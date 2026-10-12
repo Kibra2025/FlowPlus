@@ -7,6 +7,7 @@
 #include "IpcServer.h"
 
 #include "base/Log.h"
+#include "common/TransferProtocol.h"
 #include "common/VersionInfo.h"
 
 #include <QLocalServer>
@@ -52,6 +53,7 @@ void IpcServer::handleNewConnection()
 
   LOG_DEBUG("%s ipc server got new connection", m_typeName.constData());
   m_clients.insert(clientSocket);
+  clientSocket->setReadBufferSize(2 * deskflow::transfer::kMaxIpcMessage);
 
   connect(clientSocket, &QLocalSocket::readyRead, this, &IpcServer::handleReadyRead);
   connect(clientSocket, &QLocalSocket::disconnected, this, &IpcServer::handleDisconnected);
@@ -61,6 +63,9 @@ void IpcServer::handleNewConnection()
 void IpcServer::handleReadyRead()
 {
   const auto clientSocket = qobject_cast<QLocalSocket *>(sender());
+  if (!clientSocket) {
+    return;
+  }
   LOG_VERBOSE("%s ipc server ready to read data", m_typeName.constData());
 
   QByteArray chunk = clientSocket->readAll();
@@ -75,10 +80,20 @@ void IpcServer::handleReadyRead()
   // each message is delimited by a newline to keep the protocol super simple.
   while (buffer.contains('\n')) {
     const auto index = buffer.indexOf('\n');
+    if (index > deskflow::transfer::kMaxIpcMessage) {
+      clientSocket->abort();
+      return;
+    }
     QByteArray messageData = buffer.left(index);
     buffer.remove(0, index + 1);
     QString message = QString::fromUtf8(messageData);
     processMessage(clientSocket, message);
+    if (clientSocket->state() != QLocalSocket::ConnectedState) {
+      return;
+    }
+  }
+  if (buffer.size() > deskflow::transfer::kMaxIpcMessage) {
+    clientSocket->abort();
   }
 }
 
@@ -87,6 +102,7 @@ void IpcServer::handleDisconnected()
   const auto clientSocket = qobject_cast<QLocalSocket *>(sender());
   LOG_DEBUG("%s ipc server client disconnected", m_typeName.constData());
   m_clients.remove(clientSocket);
+  m_readyClients.remove(clientSocket);
   m_readBuffers.remove(clientSocket);
   clientSocket->deleteLater();
 }
@@ -96,13 +112,14 @@ void IpcServer::handleErrorOccurred()
   const auto clientSocket = qobject_cast<QLocalSocket *>(sender());
   LOG_ERR("%s ipc server client error: %s", m_typeName.constData(), clientSocket->errorString().toUtf8().constData());
   m_clients.remove(clientSocket);
+  m_readyClients.remove(clientSocket);
   m_readBuffers.remove(clientSocket);
   clientSocket->deleteLater();
 }
 
 void IpcServer::processMessage(QLocalSocket *clientSocket, const QString &message)
 {
-  LOG_VERBOSE("%s ipc server got message: %s", m_typeName.constData(), message.toUtf8().constData());
+  LOG_VERBOSE("%s ipc server got %d characters", m_typeName.constData(), static_cast<int>(message.size()));
   const auto parts = message.split('=');
   if (parts.isEmpty()) {
     LOG_ERR("%s ipc server got invalid message: %s", m_typeName.constData(), message.toUtf8().constData());
@@ -135,6 +152,7 @@ void IpcServer::processMessage(QLocalSocket *clientSocket, const QString &messag
 
     LOG_DEBUG("%s ipc server sending hello back", m_typeName.constData());
     writeToClientSocket(clientSocket, QStringLiteral("hello=%1").arg(versionId));
+    m_readyClients.insert(clientSocket);
 
     // Replay messages that were queued before any clients connected.
     LOG_VERBOSE("ipc server replaying %d pending messages", m_pendingMessages.size());
@@ -143,6 +161,10 @@ void IpcServer::processMessage(QLocalSocket *clientSocket, const QString &messag
       writeToClientSocket(clientSocket, pending);
     }
     m_pendingMessages.clear();
+  } else if (!m_readyClients.contains(clientSocket)) {
+    writeToClientSocket(clientSocket, QStringLiteral("error=hello required"));
+    clientSocket->disconnectFromServer();
+    return;
   } else if (command == QStringLiteral("noop")) {
     LOG_DEBUG("%s ipc server got noop message", m_typeName.constData());
     writeToClientSocket(clientSocket, QStringLiteral("ok"));
@@ -157,19 +179,26 @@ void IpcServer::broadcastCommand(const QString &command, const QString &args)
 {
   const auto message = args.isEmpty() ? command : QStringLiteral("%1=%2").arg(command, args);
 
-  if (m_clients.isEmpty()) {
-    LOG_VERBOSE(
-        "%s ipc server has no clients, message queued: %s", m_typeName.constData(), message.toUtf8().constData()
-    );
+  if (m_readyClients.isEmpty()) {
+    // File bytes and gestures belong to a live GUI. Replaying them after a
+    // reconnect would trigger stale drops and retain entire uploads in memory.
+    if (command == "dragInfoFrom" || command == "fileChunkFrom" || command == "dragInfo" || command == "fileChunk" ||
+        command == "screenSwitched" || command == "clientScreenEntered" || command == "clientScreenLeft" ||
+        command == "mouseButtonUp" || command == "dragCancelled") {
+      return;
+    }
+    if (m_pendingMessages.size() >= 128) {
+      m_pendingMessages.removeFirst();
+    }
     m_pendingMessages.append(message);
     return;
   }
 
   LOG_VERBOSE(
-      "%s ipc server broadcasting message to %d clients: %s", m_typeName.constData(), m_clients.size(),
-      message.toUtf8().constData()
+      "%s ipc server broadcasting to %d clients", m_typeName.constData(), static_cast<int>(m_readyClients.size())
   );
-  for (auto *client : std::as_const(m_clients)) {
+  const auto clients = m_readyClients;
+  for (auto *client : clients) {
     writeToClientSocket(client, message);
     client->flush();
   }
@@ -178,13 +207,16 @@ void IpcServer::broadcastCommand(const QString &command, const QString &args)
 void IpcServer::writeToClientSocket(QLocalSocket *&clientSocket, const QString &message) const
 {
   QByteArray messageData = message.toUtf8() + '\n';
+  if (messageData.size() > deskflow::transfer::kMaxIpcMessage ||
+      clientSocket->bytesToWrite() + messageData.size() > 4 * deskflow::transfer::kMaxIpcMessage) {
+    clientSocket->abort();
+    return;
+  }
   qint64 bytesWritten = clientSocket->write(messageData);
   if (bytesWritten != messageData.size()) {
     LOG_ERR("%s ipc server failed to write full message to client socket", m_typeName.constData());
   } else {
-    LOG_VERBOSE(
-        "%s ipc server wrote message to client socket: %s", m_typeName.constData(), message.toUtf8().constData()
-    );
+    LOG_VERBOSE("%s ipc server wrote %d bytes", m_typeName.constData(), static_cast<int>(messageData.size()));
   }
 }
 

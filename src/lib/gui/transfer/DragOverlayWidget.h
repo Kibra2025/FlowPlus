@@ -6,7 +6,6 @@
 
 #pragma once
 
-#include <QElapsedTimer>
 #include <QLabel>
 #include <QPoint>
 #include <QProgressBar>
@@ -52,6 +51,7 @@ private Q_SLOTS:
 
 private:
   static bool isLeftMouseButtonDown();
+  void positionNearCursor();
 
   State m_state = State::Hidden;
   QLabel *m_titleLabel = nullptr;
@@ -59,10 +59,7 @@ private:
   QProgressBar *m_progressBar = nullptr;
   QTimer *m_cursorTimer = nullptr;
   QTimer *m_autoHideTimer = nullptr;
-  QElapsedTimer m_dragStartElapsed;
   bool m_sawMouseDown = false;
-  QPoint m_lastCursorPos;
-  int m_stationaryTicks = 0;
 };
 
 } // namespace deskflow::gui::transfer

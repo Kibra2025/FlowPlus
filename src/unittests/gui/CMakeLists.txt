@@ -5,6 +5,13 @@ add_subdirectory(config)
 add_subdirectory(core)
 
 create_test(
+  NAME DragDropManagerTests
+  DEPENDS gui
+  SOURCE DragDropManagerTests.cpp
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/src/lib/gui"
+)
+
+create_test(
   NAME LoggerTests
   DEPENDS gui
   SOURCE LoggerTests.cpp
@@ -15,5 +22,12 @@ create_test(
   NAME KeySequenceTests
   DEPENDS gui
   SOURCE KeySequenceTests.cpp
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/src/lib/gui"
+)
+
+create_test(
+  NAME VersionCheckerTests
+  DEPENDS gui
+  SOURCE VersionCheckerTests.cpp
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/src/lib/gui"
 )

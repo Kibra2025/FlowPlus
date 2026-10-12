@@ -10,10 +10,13 @@
 #include <QGuiApplication>
 #include <QPainter>
 #include <QPainterPath>
+#include <QScreen>
 #include <QVBoxLayout>
 
 #if defined(Q_OS_WIN)
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
 #include <Windows.h>
 #endif
 
@@ -21,9 +24,8 @@ namespace deskflow::gui::transfer {
 
 DragOverlayWidget::DragOverlayWidget(QWidget *parent)
     : QWidget(
-          parent,
-          Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::WindowDoesNotAcceptFocus |
-              Qt::WindowTransparentForInput
+          parent, Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::WindowDoesNotAcceptFocus |
+                      Qt::WindowTransparentForInput
       ),
       m_titleLabel{new QLabel(this)},
       m_subtitleLabel{new QLabel(this)},
@@ -41,18 +43,20 @@ DragOverlayWidget::DragOverlayWidget(QWidget *parent)
 
   m_titleLabel->setStyleSheet(QStringLiteral("color: #FFFFFF; font-weight: 600; font-size: 12px;"));
   m_titleLabel->setWordWrap(true);
+  m_titleLabel->setTextFormat(Qt::PlainText);
 
   m_subtitleLabel->setStyleSheet(QStringLiteral("color: #B8C4D8; font-size: 11px;"));
   m_subtitleLabel->setWordWrap(true);
+  m_subtitleLabel->setTextFormat(Qt::PlainText);
 
   m_progressBar->setRange(0, 100);
   m_progressBar->setValue(0);
   m_progressBar->setTextVisible(false);
   m_progressBar->setFixedHeight(6);
-  m_progressBar->setStyleSheet(
-      QStringLiteral("QProgressBar { background-color: rgba(255,255,255,0.18); border-radius: 3px; border: none; }"
-                     "QProgressBar::chunk { background-color: #38BDF8; border-radius: 3px; }")
-  );
+  m_progressBar->setStyleSheet(QStringLiteral(
+      "QProgressBar { background-color: rgba(255,255,255,0.18); border-radius: 3px; border: none; }"
+      "QProgressBar::chunk { background-color: #38BDF8; border-radius: 3px; }"
+  ));
   m_progressBar->hide();
 
   layout->addWidget(m_titleLabel);
@@ -75,12 +79,8 @@ void DragOverlayWidget::showDragging(const QString &summaryText, const QString &
   m_progressBar->hide();
   adjustSize();
 
-  m_dragStartElapsed.start();
   m_sawMouseDown = isLeftMouseButtonDown();
-  m_lastCursorPos = QCursor::pos();
-  m_stationaryTicks = 0;
-
-  move(m_lastCursorPos + QPoint(18, 18));
+  positionNearCursor();
   show();
   raise();
   m_cursorTimer->start();
@@ -91,13 +91,13 @@ void DragOverlayWidget::showTransferring(const QString &fileName, int percent)
   m_autoHideTimer->stop();
   m_cursorTimer->stop();
   m_state = State::Transferring;
-  m_titleLabel->setText(tr("Trasferimento in corso: %1").arg(fileName));
-  m_subtitleLabel->setText(tr("%1% completato via FlowPlus LocalSend").arg(percent));
+  m_titleLabel->setText(tr("Transferring: %1").arg(fileName));
+  m_subtitleLabel->setText(tr("%1% received with FlowPlus").arg(qBound(0, percent, 100)));
   m_progressBar->setValue(qBound(0, percent, 100));
   m_progressBar->show();
   adjustSize();
   if (!isVisible()) {
-    move(QCursor::pos() + QPoint(18, 18));
+    positionNearCursor();
     show();
   }
   raise();
@@ -108,12 +108,12 @@ void DragOverlayWidget::showCompleted(const QString &message)
   m_cursorTimer->stop();
   m_state = State::Completed;
   m_titleLabel->setText(message);
-  m_subtitleLabel->setText(tr("File pronto e rilasciato nella destinazione"));
+  m_subtitleLabel->setText(tr("Saved in the FlowPlus download folder"));
   m_progressBar->setValue(100);
   m_progressBar->hide();
   adjustSize();
   if (!isVisible()) {
-    move(QCursor::pos() + QPoint(18, 18));
+    positionNearCursor();
     show();
   }
   raise();
@@ -140,7 +140,7 @@ bool DragOverlayWidget::isLeftMouseButtonDown()
 void DragOverlayWidget::onCursorTrackTick()
 {
   const QPoint pos = QCursor::pos();
-  move(pos + QPoint(18, 18));
+  positionNearCursor();
 
   if (m_state != State::Dragging) {
     return;
@@ -149,28 +149,28 @@ void DragOverlayWidget::onCursorTrackTick()
   const bool leftDown = isLeftMouseButtonDown();
   if (leftDown) {
     m_sawMouseDown = true;
-    m_stationaryTicks = 0;
-  } else if (m_sawMouseDown && m_dragStartElapsed.elapsed() > 120) {
+  } else if (m_sawMouseDown) {
     // User had the mouse button held down and just released it on this screen
     m_cursorTimer->stop();
     Q_EMIT dropDetected(pos);
     return;
-  } else if (!leftDown && m_dragStartElapsed.elapsed() > 750) {
-    // Fallback if OS drag loop released button during screen transition:
-    // trigger drop when the user pauses the cursor for ~400ms on the target window
-    if ((pos - m_lastCursorPos).manhattanLength() <= 3) {
-      ++m_stationaryTicks;
-      if (m_stationaryTicks >= 25) {
-        m_cursorTimer->stop();
-        Q_EMIT dropDetected(pos);
-        return;
-      }
-    } else {
-      m_stationaryTicks = 0;
-    }
   }
+}
 
-  m_lastCursorPos = pos;
+void DragOverlayWidget::positionNearCursor()
+{
+  const auto cursor = QCursor::pos();
+  auto position = cursor + QPoint(18, 18);
+  auto *screen = QGuiApplication::screenAt(cursor);
+  if (!screen) {
+    screen = QGuiApplication::primaryScreen();
+  }
+  if (screen) {
+    const auto available = screen->availableGeometry();
+    position.setX(qMax(available.left(), qMin(position.x(), available.right() - width() + 1)));
+    position.setY(qMax(available.top(), qMin(position.y(), available.bottom() - height() + 1)));
+  }
+  move(position);
 }
 
 void DragOverlayWidget::paintEvent(QPaintEvent *event)

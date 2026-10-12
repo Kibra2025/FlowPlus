@@ -102,6 +102,13 @@ public:
   */
   virtual uint32_t getSize() const = 0;
 
+  // File transfers require a live TLS connection whose peer certificate was
+  // checked against the trust database. Configuration alone is insufficient.
+  virtual bool isPeerAuthenticated() const
+  {
+    return false;
+  }
+
   //@}
 };
 

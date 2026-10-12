@@ -1,5 +1,9 @@
 <RCC>
     <qresource prefix="/">
+        <file alias="icons/deskflow-dark/apps/64/io.github.kibra2025.FlowPlus.svg">flowplus.svg</file>
+        <file alias="icons/deskflow-dark/apps/64/io.github.kibra2025.FlowPlus-symbolic.svg">flowplus-symbolic-dark.svg</file>
+        <file alias="icons/deskflow-light/apps/64/io.github.kibra2025.FlowPlus.svg">flowplus.svg</file>
+        <file alias="icons/deskflow-light/apps/64/io.github.kibra2025.FlowPlus-symbolic.svg">flowplus-symbolic.svg</file>
         <file>icons/deskflow-dark/actions/16/configure.svg</file>
         <file>icons/deskflow-dark/actions/16/edit-copy.svg</file>
         <file>icons/deskflow-dark/actions/16/document-edit.svg</file>

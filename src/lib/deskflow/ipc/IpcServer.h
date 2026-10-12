@@ -52,6 +52,7 @@ private:
 
   QLocalServer *m_server;
   QSet<QLocalSocket *> m_clients;
+  QSet<QLocalSocket *> m_readyClients;
   QHash<QLocalSocket *, QByteArray> m_readBuffers;
   QString m_serverName;
   QStringList m_pendingMessages;

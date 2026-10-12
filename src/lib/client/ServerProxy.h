@@ -13,6 +13,8 @@
 #include "deskflow/ClipboardTypes.h"
 #include "deskflow/KeyTypes.h"
 #include "deskflow/KeyboardLayoutManager.h"
+#include <QMetaObject>
+#include <vector>
 
 class Client;
 class ClientInfo;
@@ -65,6 +67,8 @@ protected:
   ConnectionResult parseMessage(const uint8_t *code);
 
 private:
+  std::vector<QMetaObject::Connection> m_transferIpcConnections;
+  bool m_flowplusTransfers = false;
   // if compressing mouse motion then send the last motion now
   void flushCompressedMouse();
 

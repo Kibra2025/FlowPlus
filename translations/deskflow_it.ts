@@ -5,7 +5,7 @@
     <name>AboutDialog</name>
     <message>
         <source>About Deskflow</source>
-        <translation>Informazioni su Deskflow</translation>
+        <translation type="vanished">Informazioni su Deskflow</translation>
     </message>
     <message>
         <source>Version: </source>
@@ -33,7 +33,7 @@
 p, li { white-space: pre-wrap; }
 &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Ubuntu&apos;; font-size:10pt; font-weight:400; font-style:normal;&quot;&gt;
 &lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;a href=&quot;https://www.gnu.org/licenses/old-licenses/gpl-2.0.html&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#508ed8;&quot;&gt;License: GNU GPL Version 2&lt;/a&gt;&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;  
+        <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;  
 p, li { white-space: pre-wrap; }  
 &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Ubuntu&apos;; font-size:10pt; font-weight:400; font-style:normal;&quot;&gt;  
@@ -45,11 +45,31 @@ p, li { white-space: pre-wrap; }
 p, li { white-space: pre-wrap; }
 &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Ubuntu&apos;; font-size:10pt; font-weight:400; font-style:normal;&quot;&gt;
 &lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;a href=&quot;https://github.com/deskflow/deskflow/graphs/contributors&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#508ed8;&quot;&gt;Code Contributors&lt;/span&gt;&lt;/a&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;  
+        <translation type="vanished">&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;  
 p, li { white-space: pre-wrap; }  
 &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Ubuntu&apos;; font-size:10pt; font-weight:400; font-style:normal;&quot;&gt;  
 &lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;a href=&quot;https://github.com/deskflow/deskflow/graphs/contributors&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#508ed8;&quot;&gt;Collaboratori al codice&lt;/span&gt;&lt;/a&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+    </message>
+    <message>
+        <source>About FlowPlus</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Ubuntu&apos;; font-size:10pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;a href=&quot;https://github.com/Kibra2025/FlowPlus/graphs/contributors&quot;&gt;&lt;span style=&quot; text-decoration: underline; color:#508ed8;&quot;&gt;FlowPlus Contributors&lt;/span&gt;&lt;/a&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>About %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Based on Deskflow. Experimental file transfers use the LocalSend protocol.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -594,6 +614,34 @@ Inoltre, verifica di poter %1 il file di configurazione del server: %2</translat
         <source>&lt;p&gt;Keyboard layout support requires matching layouts on all computers. The following layouts from the other computer are not installed on this computer:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Please install them to enable support for these layouts.&lt;/p&gt;</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Send files...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Received files</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select files to send with FlowPlus</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable TLS and peer fingerprint checking to transfer files</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Connect a verified FlowPlus peer to send files</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Direct file transfer is unavailable; transfers use the FlowPlus TLS connection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drag files to a connected screen, or choose Send files</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>NewScreenWidget</name>
@@ -1038,7 +1086,7 @@ Inoltre, verifica di poter %1 il file di configurazione del server: %2</translat
     </message>
     <message>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Enables compatibility with programs that use either the Synergy or Barrier protocols:&lt;/p&gt;&lt;ul style=&quot;margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; -qt-list-indent: 1;&quot;&gt;&lt;li style=&quot; margin-top:12px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Synergy 3 uses the Synergy protocol.&lt;/li&gt;&lt;li style=&quot; margin-top:0px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Barrier, Input-Leap and Synergy 1 uses the Barrier protocol.&lt;/li&gt;&lt;/ul&gt;&lt;p&gt;A Deskflow client will automatically use either the Synergy or Barrier protocol depending on the server protocol.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Abilita la compatibilità con programmi che utilizzano i protocolli Synergy o Barrier:&lt;/p&gt;&lt;ul style=&quot;margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; -qt-list-indent: 1;&quot;&gt;&lt;li style=&quot; margin-top:12px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Synergy 3 usa il protocollo Synergy.&lt;/li&gt;&lt;li style=&quot; margin-top:0px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Barrier, Input-Leap e Synergy 1 usano il protocollo Barrier.&lt;/li&gt;&lt;/ul&gt;&lt;p&gt;Un client Deskflow utilizzerà automaticamente il protocollo Synergy o Barrier a seconda del protocollo del server.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <translation type="vanished">&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Abilita la compatibilità con programmi che utilizzano i protocolli Synergy o Barrier:&lt;/p&gt;&lt;ul style=&quot;margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; -qt-list-indent: 1;&quot;&gt;&lt;li style=&quot; margin-top:12px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Synergy 3 usa il protocollo Synergy.&lt;/li&gt;&lt;li style=&quot; margin-top:0px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Barrier, Input-Leap e Synergy 1 usano il protocollo Barrier.&lt;/li&gt;&lt;/ul&gt;&lt;p&gt;Un client Deskflow utilizzerà automaticamente il protocollo Synergy o Barrier a seconda del protocollo del server.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <source>Network protocol</source>
@@ -1092,6 +1140,10 @@ L&apos;abilitazione di questa impostazione disabiliterà l&apos;interfaccia graf
     <message>
         <source>Enable lock to computer at startup</source>
         <translation type="unfinished">Abilita il blocco al computer all&apos;avvio</translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Enables compatibility with programs that use either the Synergy or Barrier protocols:&lt;/p&gt;&lt;ul style=&quot;margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; -qt-list-indent: 1;&quot;&gt;&lt;li style=&quot; margin-top:12px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Synergy 3 uses the Synergy protocol.&lt;/li&gt;&lt;li style=&quot; margin-top:0px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Barrier, Input-Leap and Synergy 1 uses the Barrier protocol.&lt;/li&gt;&lt;/ul&gt;&lt;p&gt;A FlowPlus client will automatically use either the Synergy or Barrier protocol depending on the server protocol.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1364,6 +1416,255 @@ L&apos;abilitazione di questa impostazione disabiliterà l&apos;interfaccia graf
     <message>
         <source>Encryption Disabled</source>
         <translation>Crittografia disabilitata</translation>
+    </message>
+</context>
+<context>
+    <name>deskflow::gui::transfer::DragDropManager</name>
+    <message>
+        <source>File transfer timed out</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The destination disconnected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The sender disconnected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Connect a FlowPlus peer with TLS enabled before sending files</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wait for the current transfer to finish</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Some selected files cannot be read</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Choose at most %1 files, totaling at most %2, with portable file names</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Files ready: %1 (%2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The destination is not available</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Move the pointer onto the destination screen before choosing Send files</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Waiting for the destination to accept the files</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File drag canceled</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 (%2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 files (%2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Release the left mouse button to receive these files</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The incoming file offer changed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Receive files with FlowPlus</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Receive %1 files (%2) from %3?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The sender canceled the transfer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The destination declined or canceled the transfer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A selected file changed during the drag</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not prepare the download folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not enough space to receive the files</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Connecting…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The sender is not available</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Files received successfully by the destination</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Direct transfer unavailable; using the connected FlowPlus TLS channel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot start the FlowPlus transfer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not read the selected file, or its size changed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not read the entire file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invalid file transfer sequence</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The file does not match the accepted offer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not create the download file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invalid file data or size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not write the download file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unknown file transfer message</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The received file is incomplete</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not save the received files</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Files saved; the sender disconnected before receiving confirmation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Files received: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Files saved in Downloads/FlowPlus and available to paste</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Files saved in Downloads/FlowPlus</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Files received; native drop requested</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>deskflow::gui::transfer::DragOverlayWidget</name>
+    <message>
+        <source>Transferring: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1% received with FlowPlus</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Saved in the FlowPlus download folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>deskflow::gui::transfer::LocalSendService</name>
+    <message>
+        <source>Received more bytes than declared</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not save incoming file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not publish received files</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Incoming transfer cancelled by sender</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Incoming file upload was interrupted</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Incoming transfer timed out</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invalid file transfer request</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>HTTPS LocalSend peers are not supported by this transport</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File cannot be transferred: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Receiver did not accept the transfer: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Receiver returned an invalid or partial acceptance</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Receiver returned an invalid upload token</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File changed or cannot be opened: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File upload failed: %1</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

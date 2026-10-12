@@ -10,6 +10,8 @@
 
 #include "base/IEventQueue.h"
 #include "base/Log.h"
+#include "common/Settings.h"
+#include "common/TransferProtocol.h"
 #include "deskflow/AppUtil.h"
 #include "deskflow/DeskflowException.h"
 #include "deskflow/IPlatformScreen.h"
@@ -18,6 +20,7 @@
 #include "deskflow/ProtocolTypes.h"
 #include "deskflow/Screen.h"
 #include "deskflow/StreamChunker.h"
+#include "deskflow/TransferEvent.h"
 #include "deskflow/ipc/CoreIpc.h"
 #include "deskflow/ipc/CoreIpcServer.h"
 #include "net/TCPSocket.h"
@@ -36,6 +39,145 @@
 #include <ctime>
 
 using namespace deskflow::server;
+
+void Server::receiveDragInfo(const std::string &sourceName, uint16_t count, const QByteArray &wire)
+{
+  const auto canonical = m_config->getCanonicalName(sourceName);
+  const auto source = canonical.empty() ? sourceName : canonical;
+  deskflow::transfer::RoutedPayload route;
+  const auto peer = m_clients.find(source);
+  const auto *proxy = peer == m_clients.end() ? nullptr : dynamic_cast<ClientProxy *>(peer->second);
+  if (proxy && proxy->getStream()->isPeerAuthenticated() && deskflow::transfer::decode(wire, route)) {
+    const auto object = QJsonDocument::fromJson(route.data).object();
+    if (object.value("action").toString() == "flowplusCapability" && object.value("version").toInt() == 1) {
+      m_fileTransferPeers.insert(source);
+      sendConnectedClientsIpc();
+      const auto reply = deskflow::transfer::encode(
+          {}, QString::fromStdString(source), QByteArray("{\"action\":\"flowplusCapabilityAck\"}")
+      );
+      routeTransfer(getName(m_primaryClient), false, 0, reply);
+      return;
+    }
+  }
+  routeTransfer(source, false, count, wire);
+}
+
+void Server::receiveFileChunk(const std::string &source, uint8_t mark, const QByteArray &wire)
+{
+  routeTransfer(source, true, mark, wire);
+}
+
+void Server::routeTransfer(const std::string &sourceName, bool fileChunk, uint16_t number, const QByteArray &wire)
+{
+  const auto canonicalSource = m_config->getCanonicalName(sourceName);
+  const auto source = canonicalSource.empty() ? sourceName : canonicalSource;
+  deskflow::transfer::RoutedPayload route;
+  if (!Settings::value(Settings::Security::TlsEnabled).toBool() || !deskflow::transfer::decode(wire, route)) {
+    return;
+  }
+  // Pin the target in every message. Moving the mouse during an upload must
+  // never reroute its remaining bytes to a different computer.
+  const auto primaryName = getName(m_primaryClient);
+  if (source != primaryName && !m_fileTransferPeers.contains(source)) {
+    return;
+  }
+  auto targetName = route.target.toStdString();
+  const auto canonicalTarget = m_config->getCanonicalName(targetName);
+  if (!canonicalTarget.empty()) {
+    targetName = canonicalTarget;
+  }
+  const auto action = fileChunk ? QString() : QJsonDocument::fromJson(route.data).object().value("action").toString();
+  if (action == "dragCancel" && source == m_remoteDragSource) {
+    m_remoteDragWire.clear();
+    m_remoteDragSource.clear();
+    m_remoteDragAge.invalidate();
+  }
+  if (action == "dragStart" && source != primaryName && m_clients.contains(source)) {
+    m_remoteDragWire = wire;
+    m_remoteDragSource = source;
+    m_remoteDragAge.start();
+    if (getName(m_active) == source) {
+      return; // Wait until the held cursor enters the destination screen.
+    }
+    if (targetName.empty()) {
+      targetName = getName(m_active);
+    }
+  }
+  if (targetName.empty()) {
+    targetName = source == primaryName ? getName(m_active) : primaryName;
+  }
+  const auto found = m_clients.find(targetName);
+  if (source == targetName || found == m_clients.end() || !m_clients.contains(source)) {
+    return;
+  }
+  if (targetName != primaryName && !m_fileTransferPeers.contains(targetName)) {
+    return;
+  }
+  auto *target = found->second;
+  // The server indexes canonical screen names; a secondary may have joined
+  // with an alias and validates its own wire name on receipt.
+  auto outgoing =
+      deskflow::transfer::encode(QString::fromStdString(source), QString::fromStdString(target->getName()), route.data);
+  if (outgoing.isEmpty()) {
+    return;
+  }
+  if (target == m_primaryClient) {
+    ipcSendToClient(
+        fileChunk ? QStringLiteral("fileChunkFrom") : QStringLiteral("dragInfoFrom"),
+        QStringLiteral("%1:%2").arg(number).arg(QString::fromLatin1(outgoing.toBase64()))
+    );
+  } else if (fileChunk) {
+    target->fileChunkSending(static_cast<uint8_t>(number), outgoing.data(), static_cast<size_t>(outgoing.size()));
+  } else {
+    target->sendDragInfo(number, outgoing.constData(), static_cast<size_t>(outgoing.size()));
+  }
+}
+
+void Server::cancelStagedDrag()
+{
+  const auto primaryName = getName(m_primaryClient);
+  auto source = primaryName;
+  QByteArray wire;
+  if (deskflow::core::ipc::CoreIpcServer::hasInstance()) {
+    wire = deskflow::core::ipc::CoreIpcServer::instance().stagedDragInfo();
+  }
+  if (wire.isEmpty() && !m_remoteDragWire.isEmpty() && m_remoteDragAge.isValid() &&
+      m_remoteDragAge.elapsed() < deskflow::transfer::kDragLifetimeMs) {
+    wire = m_remoteDragWire;
+    source = m_remoteDragSource;
+  }
+  deskflow::transfer::RoutedPayload staged;
+  if (!deskflow::transfer::decode(wire, staged)) {
+    return;
+  }
+  const auto id = QJsonDocument::fromJson(staged.data).object().value("transferId").toString();
+  if (id.isEmpty()) {
+    return;
+  }
+  const auto cancellation =
+      QJsonDocument(QJsonObject{{"action", "dragCancel"}, {"transferId", id}}).toJson(QJsonDocument::Compact);
+  // Clear every pending hover for this UUID, including a screen we just left.
+  for (const auto &entry : m_clients) {
+    const auto &name = entry.first;
+    if (name != source) {
+      routeTransfer(source, false, 0, deskflow::transfer::encode({}, QString::fromStdString(name), cancellation));
+    }
+  }
+  ipcSendToClient("dragCancelled", id);
+  if (source != primaryName) {
+    const auto sourceCancellation =
+        QJsonDocument(QJsonObject{{"action", "dragCancelled"}, {"transferId", id}}).toJson(QJsonDocument::Compact);
+    routeTransfer(
+        primaryName, false, 0, deskflow::transfer::encode({}, QString::fromStdString(source), sourceCancellation)
+    );
+  }
+  m_remoteDragWire.clear();
+  m_remoteDragSource.clear();
+  m_remoteDragAge.invalidate();
+  if (deskflow::core::ipc::CoreIpcServer::hasInstance()) {
+    deskflow::core::ipc::CoreIpcServer::instance().clearStagedDragInfo();
+  }
+}
 
 //
 // Server
@@ -121,42 +263,36 @@ Server::Server(ServerConfig &config, PrimaryClient *primaryClient, deskflow::Scr
     m_primaryClient->fakeInputEnd();
   });
   m_events->addHandler(EventTypes::FileDragSending, this, [this](const auto &e) {
-    const auto *payload = static_cast<const std::string *>(e.getData());
-    if (payload && m_active && m_active != m_primaryClient) {
-      m_active->sendDragInfo(1, payload->data(), payload->size());
+    const auto *payload = static_cast<const TransferEvent *>(e.getDataObject());
+    if (payload) {
+      routeTransfer(getName(m_primaryClient), false, 1, payload->data);
     }
-    delete payload;
   });
   m_events->addHandler(EventTypes::FileChunkSending, this, [this](const auto &e) {
-    const auto *payload = static_cast<const std::string *>(e.getData());
-    if (payload && !payload->empty() && m_active && m_active != m_primaryClient) {
-      const auto mark = static_cast<uint8_t>((*payload)[0]);
-      std::string chunk = payload->substr(1);
-      m_active->fileChunkSending(mark, chunk.data(), chunk.size());
+    const auto *payload = static_cast<const TransferEvent *>(e.getDataObject());
+    if (payload) {
+      routeTransfer(getName(m_primaryClient), true, payload->mark, payload->data);
     }
-    delete payload;
   });
 
   if (deskflow::core::ipc::CoreIpcServer::hasInstance()) {
     auto &ipc = deskflow::core::ipc::CoreIpcServer::instance();
-    QObject::connect(&ipc, &deskflow::core::ipc::CoreIpcServer::startDragRequested, [&ipc, this](const QString &) {
-      const QByteArray raw = ipc.stagedDragInfo();
-      if (!raw.isEmpty()) {
-        auto *str = new std::string(raw.constData(), static_cast<size_t>(raw.size()));
-        m_events->addEvent(Event(EventTypes::FileDragSending, this, str, Event::EventFlags::DontFreeData));
-      }
-    });
-    QObject::connect(&ipc, &deskflow::core::ipc::CoreIpcServer::sendFileChunkRequested, [this](const QString &encoded) {
-      const auto sep = encoded.indexOf(':');
-      if (sep > 0) {
-        const auto mark = static_cast<char>(encoded.left(sep).toUInt());
-        const QByteArray chunk = QByteArray::fromBase64(encoded.mid(sep + 1).toLatin1());
-        auto *str = new std::string();
-        str->push_back(mark);
-        str->append(chunk.constData(), static_cast<size_t>(chunk.size()));
-        m_events->addEvent(Event(EventTypes::FileChunkSending, this, str, Event::EventFlags::DontFreeData));
-      }
-    });
+    m_transferIpcConnections.push_back(
+        QObject::connect(
+            &ipc, &deskflow::core::ipc::CoreIpcServer::startDragRequested,
+            [events, target = this](const QByteArray &raw) {
+              events->addEvent(Event(EventTypes::FileDragSending, target, new TransferEvent(raw)));
+            }
+        )
+    );
+    m_transferIpcConnections.push_back(
+        QObject::connect(
+            &ipc, &deskflow::core::ipc::CoreIpcServer::sendFileChunkRequested,
+            [events, target = this](uint8_t mark, const QByteArray &raw) {
+              events->addEvent(Event(EventTypes::FileChunkSending, target, new TransferEvent(raw, mark)));
+            }
+        )
+    );
   }
 
   // add connection
@@ -182,6 +318,9 @@ Server::Server(ServerConfig &config, PrimaryClient *primaryClient, deskflow::Scr
 
 Server::~Server()
 {
+  for (const auto &connection : m_transferIpcConnections) {
+    QObject::disconnect(connection);
+  }
   // remove event handlers and timers
   using enum EventTypes;
   m_events->removeHandler(KeyStateKeyDown, m_inputFilter);
@@ -351,6 +490,11 @@ void Server::sendConnectedClientsIpc() const
     }
   }
   ipcSendToClient("connectedClients", clientList.join(","));
+  QStringList transferPeers;
+  for (const auto &peer : m_fileTransferPeers) {
+    transferPeers.append(QString::fromStdString(peer));
+  }
+  ipcSendToClient("fileTransferPeers", transferPeers.join(','));
 }
 
 std::string Server::getName(const BaseClientProxy *client) const
@@ -406,6 +550,14 @@ bool Server::isLockedToScreen() const
 
   // locked if primary says we're locked
   if (m_primaryClient->isLockedToScreen()) {
+    if ((deskflow::core::ipc::CoreIpcServer::hasInstance() &&
+         !deskflow::core::ipc::CoreIpcServer::instance().stagedDragInfo().isEmpty()) ||
+        (!m_remoteDragWire.isEmpty() && m_remoteDragAge.isValid() &&
+         m_remoteDragAge.elapsed() < deskflow::transfer::kDragLifetimeMs)) {
+      // A file drag needs to cross the boundary while its button is held.
+      // Scroll-lock is checked above and remains authoritative.
+      return false;
+    }
     return true;
   }
 
@@ -531,18 +683,26 @@ void Server::switchScreen(BaseClientProxy *dst, int32_t x, int32_t y, bool forSc
     }
 
     ipcSendToClient(
-        QStringLiteral("screenSwitched"),
-        QStringLiteral("%1,%2,%3,%4")
-            .arg(QString::fromStdString(getName(m_active)))
-            .arg(m_active == m_primaryClient ? 1 : 0)
-            .arg(x)
-            .arg(y)
+        QStringLiteral("screenSwitched"), QStringLiteral("%1,%2,%3,%4")
+                                              .arg(QString::fromStdString(getName(m_active)))
+                                              .arg(m_active == m_primaryClient ? 1 : 0)
+                                              .arg(x)
+                                              .arg(y)
     );
+
+    if (!m_remoteDragWire.isEmpty() && m_remoteDragAge.isValid() &&
+        m_remoteDragAge.elapsed() < deskflow::transfer::kDragLifetimeMs && getName(m_active) != m_remoteDragSource) {
+      deskflow::transfer::RoutedPayload remote;
+      if (deskflow::transfer::decode(m_remoteDragWire, remote)) {
+        const auto directed = deskflow::transfer::encode({}, QString::fromStdString(getName(m_active)), remote.data);
+        routeTransfer(m_remoteDragSource, false, 1, directed);
+      }
+    }
 
     if (m_active != m_primaryClient && deskflow::core::ipc::CoreIpcServer::hasInstance()) {
       const QByteArray staged = deskflow::core::ipc::CoreIpcServer::instance().stagedDragInfo();
       if (!staged.isEmpty()) {
-        m_active->sendDragInfo(1, staged.constData(), static_cast<size_t>(staged.size()));
+        routeTransfer(getName(m_primaryClient), false, 1, staged);
       }
     }
 
@@ -1117,6 +1277,11 @@ void Server::sendOptions(BaseClientProxy *client) const
   }
 
   // send the options
+  const auto *proxy = dynamic_cast<ClientProxy *>(client);
+  if (proxy && proxy->getStream()->isPeerAuthenticated()) {
+    optionsList.push_back(kOptionFlowPlusTransfers);
+    optionsList.push_back(1);
+  }
   client->resetOptions();
   client->setOptions(optionsList);
 }
@@ -1580,6 +1745,10 @@ void Server::onKeyDown(KeyID id, KeyModifierMask mask, KeyButton button, const s
   LOG_VERBOSE("onKeyDown id=%d mask=0x%04x button=0x%04x lang=%s", id, mask, button, lang.c_str());
   assert(m_active != nullptr);
 
+  if (id == kKeyEscape) {
+    cancelStagedDrag();
+  }
+
   // relay
   if (!m_keyboardBroadcasting && IKeyState::KeyInfo::isDefault(screens)) {
     m_active->keyDown(id, mask, button, lang);
@@ -1655,6 +1824,12 @@ void Server::onMouseUp(ButtonID id)
         QStringLiteral("mouseButtonUp"),
         QStringLiteral("%1,%2,%3").arg(QString::fromStdString(getName(m_active))).arg(m_x).arg(m_y)
     );
+    m_remoteDragWire.clear();
+    m_remoteDragSource.clear();
+    m_remoteDragAge.invalidate();
+    if (deskflow::core::ipc::CoreIpcServer::hasInstance()) {
+      deskflow::core::ipc::CoreIpcServer::instance().clearStagedDragInfo();
+    }
   }
 }
 
@@ -1985,8 +2160,10 @@ bool Server::removeClient(BaseClientProxy *client)
   m_events->removeHandler(ClipboardChanged, client->getEventTarget());
 
   // remove from list
+  m_fileTransferPeers.erase(getName(client));
   m_clients.erase(getName(client));
   m_clientSet.erase(i);
+  sendConnectedClientsIpc();
 
   return true;
 }

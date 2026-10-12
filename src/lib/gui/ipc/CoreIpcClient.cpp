@@ -7,6 +7,7 @@
 #include "CoreIpcClient.h"
 
 #include "common/Constants.h"
+#include "common/TransferProtocol.h"
 
 #include <QDebug>
 #include <QLocalSocket>
@@ -25,9 +26,10 @@ void CoreIpcClient::sendStop()
   sendMessage(QStringLiteral("stop"));
 }
 
-void CoreIpcClient::sendStartDrag(const QByteArray &payload)
+bool CoreIpcClient::sendStartDrag(const QByteArray &payload, const QString &targetScreen)
 {
-  sendMessage(QStringLiteral("startDrag"), QString::fromLatin1(payload.toBase64()));
+  const auto wire = deskflow::transfer::encode({}, targetScreen, payload);
+  return !wire.isEmpty() && sendMessage(QStringLiteral("startDrag=%1").arg(QString::fromLatin1(wire.toBase64())));
 }
 
 void CoreIpcClient::sendClearDrag()
@@ -35,15 +37,11 @@ void CoreIpcClient::sendClearDrag()
   sendMessage(QStringLiteral("clearDrag"));
 }
 
-void CoreIpcClient::sendFileChunk(uint8_t mark, const QByteArray &chunk)
+bool CoreIpcClient::sendFileChunk(uint8_t mark, const QByteArray &chunk, const QString &targetScreen)
 {
-  const auto encoded = QStringLiteral("%1:%2").arg(mark).arg(QString::fromLatin1(chunk.toBase64()));
-  sendMessage(QStringLiteral("sendFileChunk"), encoded);
-}
-
-void CoreIpcClient::sendRequestDrop(int x, int y)
-{
-  sendMessage(QStringLiteral("requestDrop"), QStringLiteral("%1,%2").arg(x).arg(y));
+  const auto wire = deskflow::transfer::encode({}, targetScreen, chunk);
+  return !wire.isEmpty() &&
+         sendMessage(QStringLiteral("sendFileChunk=%1:%2").arg(mark).arg(QString::fromLatin1(wire.toBase64())));
 }
 
 void CoreIpcClient::processCommand(const QString &command, const QStringList &parts)

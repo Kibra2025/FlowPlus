@@ -1,6 +1,6 @@
-# Building Deskflow
+# Building FlowPlus
 
-To build Deskflow you will a minimum of: 
+To build FlowPlus you will need at least:
     - [cmake] 3.24+
     - [Qt] 6.7.0+
     - [openssl] 3.0+
@@ -9,15 +9,15 @@ To build Deskflow you will a minimum of:
 
 > ^ Will be fetched if not found on the host system.
 
-By default a build of Deskflow will: 
-     - The GUI application `deskflow`
-     - The Core application `deskflow-core`
+By default a build of FlowPlus will:
+     - The GUI application `flowplus`
+     - The Core application `flowplus-core`
      - Documentation if [doxygen] was found on your system
      - Tests that will be run as part of the build process
 
 ## Configuration
 
-Deskflow supports the following CMake options:
+FlowPlus supports the following CMake options:
 
 |         Option           |            Description                  |   Default Value    | Additional requirements |
 :-------------------------:|:---------------------------------------:|:------------------:|:-----------------------:|
@@ -31,19 +31,19 @@ Deskflow supports the following CMake options:
 | SKIP_BUILD_TESTS         | Skip running of tests at build time     | OFF                | |
 | VCPKG_QT                 | Build Qt w/ vcpkg (Windows only)        | OFF                | |
 | CLEAN_TRS                | Remove obsolete strings from tr files   | OFF                | |
-| APPLE_CODESIGN_DEV       | Apple codesign cert ID for development  | Not set            | | 
+| APPLE_CODESIGN_DEV       | Apple codesign cert ID for development  | Not set            | |
 
 Example cmake configuration:
 `cmake -S. -Bbuild -DCMAKE_INSTALL_PREFIX=<INSTALLPREFIX>`
 
 ### Windows Configuration
 
- It is recommended to use vcpkg to install the dependencies. The first time you configure Deskflow, all dependencies other than Qt will be built. If you don't want to use vcpkg, you must manually setup the dependencies. However, that will not be covered by this document.
- 
+ It is recommended to use vcpkg to install the dependencies. The first time you configure FlowPlus, all dependencies other than Qt will be built. If you don't want to use vcpkg, you must manually setup the dependencies. However, that will not be covered by this document.
+
 #### Windows and Qt
 
  There are two ways you can install [Qt] on Windows (vcpkg or Qt online installer). The default configuration expects you to use the Qt online installer. You should not install Qt in both ways, as having both can cause some weird things to happen, like Qt getting libs from one install and plugins from the other. When switching between them, remove the previous install first.
- 
+
 ##### System Qt
 
  1. Download and install the [Qt] online installer from their website.
@@ -61,7 +61,7 @@ Example cmake configuration:
 
 ### macOS codesign
 
-The code signing option `APPLE_CODESIGN_DEV` is only for local development and not intended for distributed bundles. 
+The code signing option `APPLE_CODESIGN_DEV` is only for local development and not intended for distributed bundles.
 
 Signing for local development and signing for the distribution bundle must be different because of development entitlements which are unlikely to be safe for use in production. It is impractical (i.e. very slow and cumbersome) to use the distribution bundle for local development. When developing locally, the app bundle is partial and does not contain dependencies and uses external libs, e.g. installed with Homebrew; the entitlements allow those external libs to be loaded which is not allowed by default.
 
@@ -74,7 +74,7 @@ For development codesign:
 5. To get your ID, run: `security find-identity -v -p codesigning login.keychain-db`
 6. Pass the ID to CMake, e.g. `-DAPPLE_CODESIGN_DEV=Apple Development: bob@exmaple.com (KLGSJHLFXY)`
 7. Configure and build
-8. To verify, run: `codesign -d -r- build/bin/Deskflow.app`
+8. To verify, run: `codesign -d -r- build/bin/FlowPlus.app`
 
 ## Build
 
@@ -88,18 +88,18 @@ After configuring you should be able to run make to build all targets.
 
  Running `cmake --install build` will install to the `CMAKE_INSTALL_PREFIX`
 
-## Making Deskflow packages
+## Making FlowPlus packages
 
- Deskflow can generate several packages using `cpack`.
- 
+ FlowPlus can generate several packages using `cpack`.
+
  To generate packages build the `package` or `package_source` target.
 
  Example: ` cmake --build build --target package package_source` would generate both package and package source packages.
- 
- Deskflow can generate several package types depending on the system. 
- 
+
+ FlowPlus can generate several package types depending on the system.
+
  Archive-based packages should work on all platforms. On Linux deb and rpm info is set up, Flatpaks can be generated from the included file in deploy/linux and a `PKGBUILD` for Arch linux is generated in the build folder. On macos a dmg file will be created and signed. For windows WiX can be used to create an installer.
- 
+
 [Qt]:https://www.qt.io
 [doxygen]:http://www.stack.nl/~dimitri/doxygen/
 [cmake]:https://cmake.org/

@@ -9,7 +9,8 @@ if(WIN32)
 
   # Generate rc file
   set(EXE_DESCRIPTION "${CMAKE_PROJECT_PROPER_NAME} Daemon for handling secure desktops (UAC prompts, login screen, etc)")
-  set(EXE_ICON "IDI_DESKFLOW ICON DISCARDABLE \"${CMAKE_SOURCE_DIR}/src/apps/res/deskflow.ico\"")
+  set(EXE_ICON "IDI_DESKFLOW ICON DISCARDABLE \"${CMAKE_SOURCE_DIR}/src/apps/res/flowplus.ico\"")
+  set(EXE_OUTPUT_NAME "${FLOWPLUS_APP_ID}-daemon")
   configure_file(${CMAKE_SOURCE_DIR}/src/apps/res/windows.rc.in ${target}.rc)
 
   add_executable(
@@ -18,6 +19,7 @@ if(WIN32)
     DaemonApp.cpp
     DaemonApp.h
     ${CMAKE_CURRENT_BINARY_DIR}/${target}.rc)
+  set_target_properties(${target} PROPERTIES OUTPUT_NAME "${FLOWPLUS_APP_ID}-daemon")
 
   target_link_libraries(
     ${target}

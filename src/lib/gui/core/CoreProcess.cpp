@@ -8,6 +8,7 @@
 #include "CoreProcess.h"
 
 #include "common/ExitCodes.h"
+#include "common/TransferProtocol.h"
 #include "gui/ipc/CoreIpcClient.h"
 #include "gui/ipc/DaemonIpcClient.h"
 
@@ -575,6 +576,8 @@ void CoreProcess::onCoreIpcMessageReceived(const QString &command, const QString
   } else if (command == "connectedClients") {
     const auto clients = args.isEmpty() ? QStringList() : args.split(",");
     Q_EMIT connectedClientsChanged(clients);
+  } else if (command == "fileTransferPeers") {
+    Q_EMIT fileTransferPeersChanged(args.isEmpty() ? QStringList() : args.split(','));
   } else if (command == "secureSocket") {
     Q_EMIT secureSocket(true);
     if (args != m_secureSocketVersion) {
@@ -623,6 +626,19 @@ void CoreProcess::onCoreIpcMessageReceived(const QString &command, const QString
       const auto payload = QByteArray::fromBase64(args.mid(sep + 1).toLatin1());
       Q_EMIT dragInfoReceived(count, payload);
     }
+  } else if (command == "dragCancelled") {
+    Q_EMIT dragCancelled(args);
+  } else if (command == "dragInfoFrom" || command == "fileChunkFrom") {
+    deskflow::transfer::NumberedPayload payload;
+    if (!deskflow::transfer::decodeNumberedIpc(args, command == "dragInfoFrom" ? 65535 : 255, payload) ||
+        payload.route.source.isEmpty()) {
+      return;
+    }
+    if (command == "dragInfoFrom") {
+      Q_EMIT dragInfoReceivedFrom(payload.route.source, payload.number, payload.route.data);
+    } else {
+      Q_EMIT fileChunkReceivedFrom(payload.route.source, static_cast<uint8_t>(payload.number), payload.route.data);
+    }
   } else if (command == "fileChunk") {
     const auto sep = args.indexOf(':');
     if (sep > 0) {
@@ -633,11 +649,9 @@ void CoreProcess::onCoreIpcMessageReceived(const QString &command, const QString
   }
 }
 
-void CoreProcess::sendStartDrag(const QByteArray &payload)
+bool CoreProcess::sendStartDrag(const QByteArray &payload, const QString &targetScreen)
 {
-  if (m_coreIpcClient) {
-    m_coreIpcClient->sendStartDrag(payload);
-  }
+  return m_coreIpcClient && m_coreIpcClient->sendStartDrag(payload, targetScreen);
 }
 
 void CoreProcess::sendClearDrag()
@@ -647,18 +661,9 @@ void CoreProcess::sendClearDrag()
   }
 }
 
-void CoreProcess::sendFileChunk(uint8_t mark, const QByteArray &chunk)
+bool CoreProcess::sendFileChunk(uint8_t mark, const QByteArray &chunk, const QString &targetScreen)
 {
-  if (m_coreIpcClient) {
-    m_coreIpcClient->sendFileChunk(mark, chunk);
-  }
-}
-
-void CoreProcess::sendRequestDrop(int x, int y)
-{
-  if (m_coreIpcClient) {
-    m_coreIpcClient->sendRequestDrop(x, y);
-  }
+  return m_coreIpcClient && m_coreIpcClient->sendFileChunk(mark, chunk, targetScreen);
 }
 
 bool CoreProcess::checkSecureSocket(const QString &line)

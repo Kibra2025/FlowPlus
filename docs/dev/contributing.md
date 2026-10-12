@@ -1,13 +1,5 @@
-# Contributing to Deskflow {#contributing_guide}
+# Contributing to FlowPlus {#contributing_guide}
 
-Thanks for your interest in contributing to Deskflow! We welcome all kinds of contributions — bug reports, feature suggestions, documentation improvements, and code.
+Read the repository's [contribution guide](../../.github/CONTRIBUTING.md), [architecture](../ARCHITECTURE.md), and [test checklist](../TESTING.md). Open fork-specific issues and pull requests in [FlowPlus](https://github.com/Kibra2025/FlowPlus).
 
-## Read the Full Guidelines
-
-To keep this repository clean and contribution-friendly, we've outlined our full contributing guidelines on the Deskflow Wiki:
-
-👉 [How to Contribute to Deskflow](https://github.com/deskflow/deskflow/wiki/Contributing)
-
-Please take a moment to read through the page before opening an issue or submitting a pull request.
-
-Thanks again for helping make Deskflow better!
+Preserve upstream copyright/SPDX notices and the compatibility protocol names. Native file transfer changes belong to the Qt transfer module and should include validation for rejection, cancellation, malformed metadata and interrupted connections.

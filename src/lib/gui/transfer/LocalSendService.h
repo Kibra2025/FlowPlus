@@ -6,18 +6,25 @@
 
 #pragma once
 
-#include <QFile>
+#include "TransferUtils.h"
+
 #include <QHash>
 #include <QHostAddress>
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QNetworkAccessManager>
 #include <QObject>
 #include <QPoint>
-#include <QPointer>
+#include <QSet>
 #include <QStringList>
 #include <QTcpServer>
 #include <QTcpSocket>
+#include <QTemporaryFile>
 #include <QTimer>
 #include <QUdpSocket>
+#include <QUrl>
+
+#include <memory>
 
 namespace deskflow::gui::transfer {
 
@@ -37,6 +44,8 @@ struct LocalSendDevice
   QString protocol = QStringLiteral("http");
 };
 
+// LocalSend v2 HTTP transport. Discovery is never an authorization to receive files.
+// Incoming offers must match a one-shot grant supplied by the authenticated drag channel.
 class LocalSendService : public QObject
 {
   Q_OBJECT
@@ -50,19 +59,25 @@ public:
 
   bool isRunning() const
   {
-    return m_tcpServer && m_tcpServer->isListening();
+    return m_tcpServer->isListening();
   }
   quint16 serverPort() const
   {
-    return m_tcpServer ? m_tcpServer->serverPort() : 0;
+    return m_tcpServer->serverPort();
   }
 
   QString downloadDirectory() const;
   void setDownloadDirectory(const QString &dirPath);
-
+  void setAlias(const QString &alias);
+  bool authorizeIncomingTransfer(
+      const QString &peerAddress, const QString &transferId, const QJsonArray &manifest, const QPoint &dropPos
+  );
+  void clearIncomingAuthorization(const QString &transferId);
+  void cancelOutgoingTransfer(const QString &transferId);
   void sendAnnouncement();
   void sendFiles(
-      const QString &targetHost, quint16 port, const QStringList &filePaths, const QPoint &dropPos = QPoint(-1, -1)
+      const QString &targetHost, quint16 port, const QStringList &filePaths, const QPoint &dropPos = QPoint(-1, -1),
+      const QString &transferId = {}
   );
 
   QList<LocalSendDevice> discoveredDevices() const
@@ -75,73 +90,116 @@ Q_SIGNALS:
   void transferStarted(const QString &sessionId, const QStringList &fileNames, qint64 totalBytes);
   void transferProgress(const QString &fileName, qint64 bytesTransferred, qint64 totalBytes);
   void fileReceived(const QString &savedFilePath, const QPoint &dropPos);
-  void transferCompleted(const QStringList &filePaths, const QPoint &dropPos);
-  void transferFailed(const QString &reason, const QStringList &originalFiles, const QPoint &dropPos);
+  void transferCompleted(const QStringList &filePaths, const QPoint &dropPos, const QString &transferId);
+  void filesSent(const QStringList &filePaths, const QPoint &dropPos, const QString &transferId);
+  void transferFailed(
+      const QString &reason, const QStringList &remainingFiles, const QPoint &dropPos, bool allowFallback,
+      const QString &transferId
+  );
+  void incomingTransferFailed(const QString &reason, const QString &transferId);
 
 private Q_SLOTS:
   void onNewTcpConnection();
   void onUdpReadyRead();
+  void expireInactiveTransfers();
 
 private:
+  struct IncomingGrant
+  {
+    QString peerAddress;
+    QStringList manifest;
+    QPoint dropPos;
+    qint64 expiresAt = 0;
+  };
+
   struct IncomingFileSession
   {
-    QString id;
     QString fileName;
     qint64 size = 0;
-    QString fileType;
     QString token;
-    QString targetPath;
+    QString stagingPath;
+    bool uploading = false;
     bool completed = false;
   };
 
   struct UploadSession
   {
-    QString sessionId;
-    QString senderAlias;
-    QPoint dropPos = QPoint(-1, -1);
-    qint64 totalBytes = 0;
-    qint64 receivedBytes = 0;
+    QString transferId;
+    QString peerAddress;
+    QPoint dropPos;
+    qint64 lastActivity = 0;
     QHash<QString, IncomingFileSession> files;
-    QStringList savedPaths;
+    QStringList fileIds;
   };
 
   struct HttpClientState
   {
     QByteArray buffer;
     bool headersParsed = false;
+    bool responseSent = false;
     QString method;
     QString path;
     QHash<QString, QString> query;
     qint64 contentLength = 0;
     qint64 bodyBytesReceived = 0;
+    qint64 connectedAt = 0;
+    qint64 lastActivity = 0;
     bool isStreamingUpload = false;
     QString sessionId;
     QString fileId;
-    QString token;
-    QFile *outputFile = nullptr;
+    QTemporaryFile *outputFile = nullptr;
+  };
+
+  struct OutgoingTransfer
+  {
+    QString transferId;
+    QUrl baseUrl;
+    QString sessionId;
+    QStringList fileIds;
+    QStringList paths;
+    QHash<QString, QString> tokens;
+    QHash<QString, QString> pathsById;
+    QHash<QString, qint64> sizesById;
+    QPoint dropPos;
+    quint64 generation = 0;
   };
 
   void handleClientSocketData(QTcpSocket *socket);
-  void handleCompleteHttpRequest(QTcpSocket *socket, const HttpClientState &state, const QByteArray &body);
-  void sendJsonResponse(QTcpSocket *socket, int statusCode, const QByteArray &statusText, const QByteArray &jsonBody);
+  bool parseHeaders(QTcpSocket *socket);
+  void handleCompleteHttpRequest(QTcpSocket *socket, const QByteArray &body);
+  void receiveUpload(QTcpSocket *socket);
+  void finishIncomingFile(QTcpSocket *socket);
+  void cleanupClient(QTcpSocket *socket);
+  void abortIncomingSession(const QString &sessionId, const QString &reason);
+  void
+  sendJsonResponse(QTcpSocket *socket, int statusCode, const QByteArray &statusText, const QByteArray &jsonBody = {});
   void sendEmptyResponse(QTcpSocket *socket, int statusCode, const QByteArray &statusText);
-  void uploadNextFile(
-      const QString &targetHost, quint16 port, const QString &sessionId, const QStringList &fileIds,
-      const QHash<QString, QString> &tokens, const QHash<QString, QString> &filePathsById, int index,
-      const QPoint &dropPos
+  void uploadNextFile(const std::shared_ptr<OutgoingTransfer> &transfer, int index);
+  void failOutgoingTransfer(
+      const std::shared_ptr<OutgoingTransfer> &transfer, const QString &reason, int nextIndex, bool allowFallback
   );
+  void cancelRemoteSession(const std::shared_ptr<OutgoingTransfer> &transfer);
+  void trackReply(QNetworkReply *reply, int hardTimeoutMs = 0);
   QJsonObject buildRegisterDto() const;
-  QString ensureUniqueFilePath(const QString &dirPath, const QString &fileName) const;
+  bool rememberDevice(const QJsonObject &dto, const QHostAddress &address);
 
-  QTcpServer *m_tcpServer = nullptr;
-  QUdpSocket *m_udpSocket = nullptr;
-  QNetworkAccessManager *m_networkManager = nullptr;
-  QTimer *m_announceTimer = nullptr;
+  QTcpServer *m_tcpServer;
+  QUdpSocket *m_udpSocket;
+  QNetworkAccessManager *m_networkManager;
+  QTimer *m_announceTimer;
+  QTimer *m_cleanupTimer;
   QString m_downloadDir;
+  QString m_deviceAlias;
   QString m_fingerprint;
   QHash<QString, LocalSendDevice> m_devices;
+  QHash<QString, qint64> m_deviceLastSeen;
+  QHash<QString, qint64> m_lastRegistration;
+  QHash<QString, IncomingGrant> m_grants;
   QHash<QString, UploadSession> m_sessions;
   QHash<QTcpSocket *, HttpClientState> m_httpClients;
+  QSet<QNetworkReply *> m_activeReplies;
+  QHash<QString, std::shared_ptr<OutgoingTransfer>> m_outgoingTransfers;
+  quint64 m_generation = 0;
 };
 
 } // namespace deskflow::gui::transfer

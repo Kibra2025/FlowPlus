@@ -31,7 +31,7 @@ jobs:
   sonar:
     # This job would fail for contributors who open PRs as the workflow runs outside of our repo
     # in this scenario. Having a var that only we set to true prevents this job from running.
-    if: ${{ vars.SONAR_SCANNER_ENABLED }}
+    if: ${{ vars.SONAR_SCANNER_ENABLED == 'true' && vars.SONAR_ORGANIZATION != '' && vars.SONAR_PROJECT_KEY != '' }}
 
     runs-on: ubuntu-latest
     container: debian:trixie-slim
@@ -94,6 +94,8 @@ jobs:
         uses: SonarSource/sonarqube-scan-action@v8
         with:
           args: >
+            -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
+            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
             -Dsonar.coverageReportPaths=${{ steps.coverage-paths.outputs.csv }}
             -Dsonar.cfamily.threads=${{ env.CPU_CORE_COUNT }}
         env:

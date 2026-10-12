@@ -10,15 +10,14 @@
 
 // important: this is used for settings paths on some platforms,
 // and must not be a url. qt automatically converts this to reverse domain
-// notation (rdn), e.g. org.deskflow
-const auto kOrgDomain = QStringLiteral("deskflow.org");
+// notation (rdn), e.g. io.github.kibra2025
+const auto kOrgDomain = QStringLiteral("kibra2025.github.io");
 
-const auto kUrlSourceQuery = QStringLiteral("source=gui");
-const auto kUrlApp = QStringLiteral("https://%1").arg(kOrgDomain);
-const auto kUrlHelp = QStringLiteral("%1/help?%2").arg(kUrlApp, kUrlSourceQuery);
-const auto kUrlDownload = QStringLiteral("%1/download?%2").arg(kUrlApp, kUrlSourceQuery);
+const auto kUrlApp = QStringLiteral("https://github.com/Kibra2025/FlowPlus");
+const auto kUrlHelp = QStringLiteral("%1#readme").arg(kUrlApp);
+const auto kUrlDownload = QStringLiteral("%1/releases").arg(kUrlApp);
 
-const auto kUrlUpdateCheck = QStringLiteral("https://api.%1/version").arg(kOrgDomain);
+const auto kUrlUpdateCheck = QStringLiteral("https://api.github.com/repos/Kibra2025/FlowPlus/releases/latest");
 
 #if defined(Q_OS_LINUX)
 const auto kUrlGnomeTrayFix = QStringLiteral("https://extensions.gnome.org/extension/615/appindicator-support/");

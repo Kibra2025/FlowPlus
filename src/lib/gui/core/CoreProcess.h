@@ -80,10 +80,9 @@ public:
     m_mode = mode;
   }
 
-  void sendStartDrag(const QByteArray &payload);
+  bool sendStartDrag(const QByteArray &payload, const QString &targetScreen = {});
   void sendClearDrag();
-  void sendFileChunk(uint8_t mark, const QByteArray &chunk);
-  void sendRequestDrop(int x, int y);
+  bool sendFileChunk(uint8_t mark, const QByteArray &chunk, const QString &targetScreen = {});
 
 Q_SIGNALS:
   void error(deskflow::gui::CoreProcess::Error error);
@@ -93,6 +92,7 @@ Q_SIGNALS:
   void secureSocket(bool enabled);
   void daemonIpcClientConnectionFailed();
   void connectedClientsChanged(const QStringList &clients);
+  void fileTransferPeersChanged(const QStringList &clients);
   void securityLevelChanged(QString securityLevel);
   void unrecognisedClient(const QString &clientName);
   void connectionRefused(deskflow::core::ConnectionRefusal reason);
@@ -103,8 +103,11 @@ Q_SIGNALS:
   void clientScreenEntered(int x, int y);
   void clientScreenLeft();
   void mouseButtonUp(const QString &screenName, int x, int y);
+  void dragCancelled(const QString &transferId);
   void dragInfoReceived(uint32_t fileCount, const QByteArray &payload);
   void fileChunkReceived(uint8_t mark, const QByteArray &chunk);
+  void dragInfoReceivedFrom(const QString &sourceScreen, uint32_t fileCount, const QByteArray &payload);
+  void fileChunkReceivedFrom(const QString &sourceScreen, uint8_t mark, const QByteArray &chunk);
 
 private Q_SLOTS:
   void onProcessFinished(int exitCode, QProcess::ExitStatus);

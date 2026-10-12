@@ -64,6 +64,7 @@ add_subdirectory(gui)
 add_subdirectory(net)
 add_subdirectory(platform)
 add_subdirectory(server)
+add_subdirectory(transfer)
 
 #make sure to use CI only plugin on Unix
 if (UNIX AND NOT APPLE)
@@ -74,7 +75,7 @@ endif()
 get_property(PROJECT_TESTS GLOBAL PROPERTY ${CMAKE_PROJECT_NAME}_tests)
 
 if(APPLE)
-  set(guiApp Deskflow)
+  set(guiApp FlowPlus)
 else()
   set(guiApp deskflow)
 endif()

@@ -8,10 +8,13 @@
 #pragma once
 
 const auto kAppName = "@CMAKE_PROJECT_PROPER_NAME@";
-const auto kAppId = "@CMAKE_PROJECT_NAME@";
+const auto kAppId = "@FLOWPLUS_APP_ID@";
+// Upstream catalog/resource names are retained independently of product identity.
+const auto kTranslationName = "@CMAKE_PROJECT_NAME@";
+const auto kIconThemeId = "deskflow";
 const auto kAppDescription = "@CMAKE_PROJECT_DESCRIPTION@";
-const auto kDaemonBinName = "@CMAKE_PROJECT_NAME@-daemon";
-const auto kDaemonIpcName = "@CMAKE_PROJECT_NAME@-daemon";
+const auto kDaemonBinName = "@FLOWPLUS_APP_ID@-daemon";
+const auto kDaemonIpcName = "@FLOWPLUS_APP_ID@-daemon";
 const auto kRevFqdnName = "@CMAKE_PROJECT_REV_FQDN@";
 
 const auto kCopyright = //
@@ -21,7 +24,7 @@ const auto kCopyright = //
     "Copyright (C) 2002-2009 Chris Schoeneman";
 
 const auto kCoreBinName = "@CORE_BINARY@";
-const auto kCoreIpcName = "@CMAKE_PROJECT_NAME@-core";
+const auto kCoreIpcName = "@FLOWPLUS_APP_ID@-core";
 
 const auto kServerGridHeight = 3;
 const auto kServerGridWidth = 5;

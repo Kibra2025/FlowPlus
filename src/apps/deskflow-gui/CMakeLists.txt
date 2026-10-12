@@ -2,17 +2,14 @@
 # SPDX-FileCopyrightText: (C) 2024 Symless Ltd
 # SPDX-License-Identifier: MIT
 
-if(APPLE)
-  set(target Deskflow)
-else()
-  set(target deskflow)
-endif()
+set(target ${FLOWPLUS_GUI_TARGET})
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 if(WIN32)
   set(EXE_DESCRIPTION "${CMAKE_PROJECT_PROPER_NAME} GUI configuration tool")
-  set(EXE_ICON "IDI_ICON1 ICON DISCARDABLE \"${CMAKE_SOURCE_DIR}/src/apps/res/deskflow.ico\" ")
+  set(EXE_ICON "IDI_ICON1 ICON DISCARDABLE \"${CMAKE_SOURCE_DIR}/src/apps/res/flowplus.ico\" ")
+  set(EXE_OUTPUT_NAME ${FLOWPLUS_APP_ID})
   configure_file(${CMAKE_SOURCE_DIR}/src/apps/res/windows.rc.in deskflow.rc)
   set(platform_extra deskflow.rc)
 elseif(BUILD_OSX_BUNDLE)
@@ -21,7 +18,7 @@ elseif(BUILD_OSX_BUNDLE)
   set(BUNDLE_BUNDLE_NAME "${target}")
   set(BUNDLE_DISPLAY_NAME "${target}")
   set(BUNDLE_GUI_IDENTIFIER "${CMAKE_PROJECT_REV_FQDN}")
-  set(BUNDLE_ICON_FILE ${target}.icns)
+  set(BUNDLE_ICON_FILE FlowPlus.icns)
   set(BUNDLE_INFO_STRING "${CMAKE_PROJECT_DESCRIPTION}")
   set(BUNDLE_COPYRIGHT "${CMAKE_PROJECT_COPYRIGHT}")
 
@@ -31,7 +28,7 @@ elseif(BUILD_OSX_BUNDLE)
     @ONLY
   )
 
-  set(platform_extra ../res/Deskflow.icns)
+  set(platform_extra ../res/FlowPlus.icns)
   set_source_files_properties(${platform_extra} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
 endif()
 
@@ -40,6 +37,12 @@ add_executable(${target} WIN32 MACOSX_BUNDLE
   ../res/deskflow.qrc
   deskflow-gui.cpp
 )
+
+if(APPLE)
+  set_target_properties(${target} PROPERTIES OUTPUT_NAME "${CMAKE_PROJECT_PROPER_NAME}")
+else()
+  set_target_properties(${target} PROPERTIES OUTPUT_NAME "${FLOWPLUS_APP_ID}")
+endif()
 
 target_link_libraries(
   ${target}

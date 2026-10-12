@@ -1,14 +1,15 @@
-app-id: org.deskflow.deskflow
+app-id: io.github.kibra2025.FlowPlus
 runtime: org.kde.Platform
 runtime-version: "6.10"
 sdk: org.kde.Sdk
-command: deskflow
+command: flowplus
 finish-args:
   - --share=ipc
   - --socket=wayland
   - --socket=fallback-x11
   - --share=network
   - --device=dri
+  - --filesystem=xdg-download
   - --talk-name=org.kde.StatusNotifierWatcher
 cleanup:
   - /include
@@ -67,7 +68,7 @@ modules:
         url: https://github.com/flatpak/libportal.git
         tag: 0.10.0
         commit: c23024018c8eb076549a1517fcb2d7f80d3e2ed5
-  - name: deskflow
+  - name: flowplus
     buildsystem: cmake-ninja
     config-opts:
       - "-DCMAKE_BUILD_TYPE=Release"

@@ -36,7 +36,7 @@ I18N::I18N(QObject *parent) : QObject{parent}
       {QStringLiteral("/usr/local/share/%1/translations").arg(kAppId)},
       {QStringLiteral("/usr/share/%1/translations").arg(kAppId)}
   };
-  const QStringList appTrFilter{QStringLiteral("%1*.qm").arg(kAppId)};
+  const QStringList appTrFilter{QStringLiteral("%1*.qm").arg(kTranslationName)};
 
   for (const auto &dir : appTrDirs) {
     if (!dir.entryList(appTrFilter, QDir::Files, QDir::Name).isEmpty()) {
@@ -84,7 +84,7 @@ I18N::I18N(QObject *parent) : QObject{parent}
 
   if (Settings::value(Settings::Core::Language).toString().isEmpty()) {
     auto appTranslator = new QTranslator(this);
-    if (appTranslator->load(QLocale(), kAppId, s_prefix, m_appTrPath)) {
+    if (appTranslator->load(QLocale(), kTranslationName, s_prefix, m_appTrPath)) {
       m_currentTranslations.append(appTranslator);
       QCoreApplication::installTranslator(appTranslator);
     }
@@ -173,7 +173,7 @@ void I18N::detectLanguages()
   m_translations.clear();
   m_nameMap.clear();
 
-  QStringList nameFilter = {QStringLiteral("%1_*.qm").arg(kAppId)};
+  QStringList nameFilter = {QStringLiteral("%1_*.qm").arg(kTranslationName)};
   QMap<QString, QString> appTranslations;
   QStringList detectedLangCodes;
   QDir dir(m_appTrPath);

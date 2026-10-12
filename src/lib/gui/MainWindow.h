@@ -169,7 +169,7 @@ private:
 
   void serverClientsChanged(const QStringList &clients);
 
-  inline static const auto m_guiSocketName = QStringLiteral("deskflow-gui");
+  inline static const auto m_guiSocketName = QStringLiteral("flowplus-gui");
   inline static const auto m_nameRegEx = QRegularExpression(QStringLiteral("^[\\w\\-_\\.]{0,255}$"));
 
   VersionChecker m_versionChecker;
@@ -220,7 +220,9 @@ private:
 
   // Cross-device Drag & Drop + LocalSend File Transfer
   void setupFileTransferBar();
+  void updateFileTransferAvailability();
   deskflow::gui::transfer::DragDropManager *m_dragDropManager = nullptr;
+  QStringList m_fileTransferPeers;
   QLabel *m_lblTransferStatus = nullptr;
   QPushButton *m_btnSendFiles = nullptr;
   QPushButton *m_btnOpenDownloads = nullptr;

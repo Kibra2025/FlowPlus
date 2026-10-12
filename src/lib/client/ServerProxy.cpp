@@ -11,6 +11,8 @@
 #include "base/IEventQueue.h"
 #include "base/Log.h"
 #include "client/Client.h"
+#include "common/Settings.h"
+#include "common/TransferProtocol.h"
 #include "deskflow/Clipboard.h"
 #include "deskflow/ClipboardChunk.h"
 #include "deskflow/DeskflowException.h"
@@ -18,6 +20,7 @@
 #include "deskflow/ProtocolTypes.h"
 #include "deskflow/ProtocolUtil.h"
 #include "deskflow/StreamChunker.h"
+#include "deskflow/TransferEvent.h"
 #include "deskflow/ipc/CoreIpc.h"
 #include "deskflow/ipc/CoreIpcServer.h"
 #include "io/IStream.h"
@@ -48,42 +51,38 @@ ServerProxy::ServerProxy(Client *client, deskflow::IStream *stream, IEventQueue 
     ClipboardChunk::send(m_stream, e.getDataObject());
   });
   m_events->addHandler(EventTypes::FileDragSending, this, [this](const auto &e) {
-    const auto *payload = static_cast<const std::string *>(e.getData());
+    const auto *payload = static_cast<const TransferEvent *>(e.getDataObject());
     if (payload) {
-      sendDragInfo(1, payload->data(), payload->size());
+      sendDragInfo(1, payload->data.constData(), static_cast<size_t>(payload->data.size()));
     }
-    delete payload;
   });
   m_events->addHandler(EventTypes::FileChunkSending, this, [this](const auto &e) {
-    const auto *payload = static_cast<const std::string *>(e.getData());
-    if (payload && !payload->empty()) {
-      const auto mark = static_cast<uint8_t>((*payload)[0]);
-      std::string chunk = payload->substr(1);
-      sendFileChunk(mark, chunk.data(), chunk.size());
+    const auto *payload = static_cast<const TransferEvent *>(e.getDataObject());
+    if (payload) {
+      sendFileChunk(payload->mark, payload->data.constData(), static_cast<size_t>(payload->data.size()));
     }
-    delete payload;
   });
 
   if (deskflow::core::ipc::CoreIpcServer::hasInstance()) {
     auto &ipc = deskflow::core::ipc::CoreIpcServer::instance();
-    QObject::connect(&ipc, &deskflow::core::ipc::CoreIpcServer::startDragRequested, [&ipc, this](const QString &) {
-      const QByteArray raw = ipc.stagedDragInfo();
-      if (!raw.isEmpty()) {
-        auto *str = new std::string(raw.constData(), static_cast<size_t>(raw.size()));
-        m_events->addEvent(Event(EventTypes::FileDragSending, this, str, Event::EventFlags::DontFreeData));
-      }
-    });
-    QObject::connect(&ipc, &deskflow::core::ipc::CoreIpcServer::sendFileChunkRequested, [this](const QString &encoded) {
-      const auto sep = encoded.indexOf(':');
-      if (sep > 0) {
-        const auto mark = static_cast<char>(encoded.left(sep).toUInt());
-        const QByteArray chunk = QByteArray::fromBase64(encoded.mid(sep + 1).toLatin1());
-        auto *str = new std::string();
-        str->push_back(mark);
-        str->append(chunk.constData(), static_cast<size_t>(chunk.size()));
-        m_events->addEvent(Event(EventTypes::FileChunkSending, this, str, Event::EventFlags::DontFreeData));
-      }
-    });
+    // Only the event thread touches this proxy. These callbacks retain the
+    // queue and an opaque event target, never dereference a destroyed proxy.
+    m_transferIpcConnections.push_back(
+        QObject::connect(
+            &ipc, &deskflow::core::ipc::CoreIpcServer::startDragRequested,
+            [events, target = this](const QByteArray &raw) {
+              events->addEvent(Event(EventTypes::FileDragSending, target, new TransferEvent(raw)));
+            }
+        )
+    );
+    m_transferIpcConnections.push_back(
+        QObject::connect(
+            &ipc, &deskflow::core::ipc::CoreIpcServer::sendFileChunkRequested,
+            [events, target = this](uint8_t mark, const QByteArray &raw) {
+              events->addEvent(Event(EventTypes::FileChunkSending, target, new TransferEvent(raw, mark)));
+            }
+        )
+    );
   }
 
   // send heartbeat
@@ -92,6 +91,9 @@ ServerProxy::ServerProxy(Client *client, deskflow::IStream *stream, IEventQueue 
 
 ServerProxy::~ServerProxy()
 {
+  for (const auto &connection : m_transferIpcConnections) {
+    QObject::disconnect(connection);
+  }
   setKeepAliveRate(-1.0);
   m_events->removeHandler(EventTypes::StreamInputReady, m_stream->getEventTarget());
   m_events->removeHandler(EventTypes::ClipboardSending, this);
@@ -820,6 +822,8 @@ void ServerProxy::screensaver()
 
 void ServerProxy::resetOptions()
 {
+  m_flowplusTransfers = false;
+  ipcSendToClient("fileTransferPeers");
   // parse
   LOG_VERBOSE("recv reset options");
 
@@ -849,6 +853,16 @@ void ServerProxy::setOptions()
 
   // forward
   m_client->setOptions(options);
+
+  for (size_t index = 0; index + 1 < options.size(); index += 2) {
+    if (options[index] == kOptionFlowPlusTransfers && options[index + 1] == 1 && m_stream->isPeerAuthenticated()) {
+      m_flowplusTransfers = true;
+      const auto capability =
+          deskflow::transfer::encode({}, {}, QByteArray("{\"action\":\"flowplusCapability\",\"version\":1}"));
+      sendDragInfo(0, capability.constData(), static_cast<size_t>(capability.size()));
+      break;
+    }
+  }
 
   // update modifier table
   for (uint32_t i = 0, n = (uint32_t)options.size(); i < n; i += 2) {
@@ -928,6 +942,9 @@ void ServerProxy::setActiveServerLanguage(const std::string_view &language)
 
 void ServerProxy::sendDragInfo(uint32_t fileCount, const char *info, size_t size)
 {
+  if (!m_flowplusTransfers) {
+    return;
+  }
   std::string data(info, size);
   LOG_DEBUG("sending drag info to server: count=%u, size=%zu", fileCount, size);
   ProtocolUtil::writef(m_stream, kMsgDDragInfo, fileCount, &data);
@@ -935,6 +952,9 @@ void ServerProxy::sendDragInfo(uint32_t fileCount, const char *info, size_t size
 
 void ServerProxy::sendFileChunk(uint8_t mark, const char *data, size_t dataSize)
 {
+  if (!m_flowplusTransfers) {
+    return;
+  }
   std::string chunk(data, dataSize);
   LOG_VERBOSE("sending file chunk to server: mark=%u, size=%zu", mark, dataSize);
   ProtocolUtil::writef(m_stream, kMsgDFileTransfer, mark, &chunk);
@@ -944,18 +964,38 @@ void ServerProxy::dragInfoReceived()
 {
   uint16_t fileCount = 0;
   std::string content;
-  ProtocolUtil::readf(m_stream, kMsgDDragInfo + 4, &fileCount, &content);
+  if (!ProtocolUtil::readf(m_stream, kMsgDDragInfo + 4, &fileCount, &content)) {
+    throw BadClientException("Invalid drag metadata");
+  }
   LOG_DEBUG("received drag info from server: count=%u, size=%zu", fileCount, content.size());
-  const auto encoded = QString::fromLatin1(QByteArray(content.data(), static_cast<qsizetype>(content.size())).toBase64());
-  ipcSendToClient(QStringLiteral("dragInfo"), QStringLiteral("%1:%2").arg(fileCount).arg(encoded));
+  const auto encoded =
+      QString::fromLatin1(QByteArray(content.data(), static_cast<qsizetype>(content.size())).toBase64());
+  deskflow::transfer::RoutedPayload route;
+  if (m_flowplusTransfers && m_stream->isPeerAuthenticated() &&
+      deskflow::transfer::decode(QByteArray::fromStdString(content), route) && !route.source.isEmpty() &&
+      route.target == QString::fromStdString(m_client->getName())) {
+    if (QJsonDocument::fromJson(route.data).object().value("action").toString() == "flowplusCapabilityAck") {
+      ipcSendToClient("fileTransferPeers", route.source);
+      return;
+    }
+    ipcSendToClient(QStringLiteral("dragInfoFrom"), QStringLiteral("%1:%2").arg(fileCount).arg(encoded));
+  }
 }
 
 void ServerProxy::fileChunkReceived()
 {
   uint8_t mark = 0;
   std::string content;
-  ProtocolUtil::readf(m_stream, kMsgDFileTransfer + 4, &mark, &content);
+  if (!ProtocolUtil::readf(m_stream, kMsgDFileTransfer + 4, &mark, &content)) {
+    throw BadClientException("Invalid file chunk");
+  }
   LOG_VERBOSE("received file chunk from server: mark=%u, size=%zu", mark, content.size());
-  const auto encoded = QString::fromLatin1(QByteArray(content.data(), static_cast<qsizetype>(content.size())).toBase64());
-  ipcSendToClient(QStringLiteral("fileChunk"), QStringLiteral("%1:%2").arg(mark).arg(encoded));
+  const auto encoded =
+      QString::fromLatin1(QByteArray(content.data(), static_cast<qsizetype>(content.size())).toBase64());
+  deskflow::transfer::RoutedPayload route;
+  if (m_flowplusTransfers && m_stream->isPeerAuthenticated() &&
+      deskflow::transfer::decode(QByteArray::fromStdString(content), route) && !route.source.isEmpty() &&
+      route.target == QString::fromStdString(m_client->getName())) {
+    ipcSendToClient(QStringLiteral("fileChunkFrom"), QStringLiteral("%1:%2").arg(mark).arg(encoded));
+  }
 }

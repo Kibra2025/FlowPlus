@@ -6,6 +6,7 @@
 
 #include "IpcClient.h"
 
+#include "common/TransferProtocol.h"
 #include "common/VersionInfo.h"
 
 #include <QDebug>
@@ -94,6 +95,7 @@ void IpcClient::attemptConnection()
 
 void IpcClient::disconnectFromServer()
 {
+  m_readBuffer.clear();
   m_state = State::Disconnecting;
   qDebug().noquote() << QStringLiteral("%1 ipc client disconnecting from server").arg(m_typeName);
   m_socket->disconnectFromServer();
@@ -109,6 +111,7 @@ void IpcClient::handleDisconnected()
   qDebug().noquote() << QStringLiteral("%1 ipc client disconnected from server").arg(m_typeName);
   const auto wasConnected = m_state == State::Connected;
   m_state = State::Unconnected;
+  m_readBuffer.clear();
 
   if (wasConnected) {
     Q_EMIT connectionFailed();
@@ -136,10 +139,15 @@ void IpcClient::handleReadyRead()
 
   while (data.contains('\n')) {
     const auto index = data.indexOf('\n');
+    if (index > deskflow::transfer::kMaxIpcMessage) {
+      disconnectFromServer();
+      Q_EMIT connectionFailed();
+      return;
+    }
     const auto message = QString::fromUtf8(data.left(index));
     data.remove(0, index + 1);
 
-    qDebug().noquote() << QStringLiteral("%1 ipc client message: %2").arg(m_typeName, message);
+    qDebug().noquote() << QStringLiteral("%1 ipc client received %2 bytes").arg(m_typeName).arg(index);
     const auto parts = message.split('=');
     if (parts.isEmpty()) {
       qWarning().noquote() << QStringLiteral("%1 ipc client got invalid message: %2").arg(m_typeName, message);
@@ -162,6 +170,11 @@ void IpcClient::handleReadyRead()
   }
 
   if (!data.isEmpty()) {
+    if (data.size() > deskflow::transfer::kMaxIpcMessage) {
+      disconnectFromServer();
+      Q_EMIT connectionFailed();
+      return;
+    }
     m_readBuffer = data;
   }
 }
@@ -203,15 +216,20 @@ void IpcClient::handleHandshakeMessage(const QStringList &parts)
   Q_EMIT connected();
 }
 
-void IpcClient::sendMessage(const QString &message)
+bool IpcClient::sendMessage(const QString &message)
 {
   if (m_state != State::Connected) {
     qWarning().noquote() << QStringLiteral("%1 cannot send command, ipc client not connected").arg(m_typeName);
-    return;
+    return false;
   }
 
-  m_socket->write(message.toUtf8() + "\n");
-  qDebug().noquote() << QStringLiteral("%1 ipc client sent message: %2").arg(m_typeName, message);
+  const auto bytes = message.toUtf8() + '\n';
+  if (bytes.size() > deskflow::transfer::kMaxIpcMessage || message.contains('\n') ||
+      m_socket->bytesToWrite() + bytes.size() > 4 * deskflow::transfer::kMaxIpcMessage) {
+    qWarning() << "IPC send buffer limit reached";
+    return false;
+  }
+  return m_socket->write(bytes) == bytes.size();
 }
 
 } // namespace deskflow::gui::ipc

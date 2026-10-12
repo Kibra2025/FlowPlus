@@ -100,10 +100,19 @@ project(
 
 # Define Additional "PROJECT" vars for packaging and metadata
 set(CMAKE_PROJECT_PROPER_NAME "FlowPlus")
-set(CMAKE_PROJECT_VENDOR "${CMAKE_PROJECT_PROPER_NAME} Devs")
-set(CMAKE_PROJECT_COPYRIGHT "(C) 2024-2026 ${CMAKE_PROJECT_VENDOR}")
-set(CMAKE_PROJECT_CONTACT "${CMAKE_PROJECT_PROPER_NAME} <maintainers@deskflow.org>")
-set(CMAKE_PROJECT_REV_FQDN "org.deskflow.deskflow")
+set(CMAKE_PROJECT_VENDOR "FlowPlus Contributors")
+set(CMAKE_PROJECT_COPYRIGHT "(C) 2026 FlowPlus Contributors; (C) 2024-2026 Deskflow Developers")
+set(CMAKE_PROJECT_CONTACT "https://github.com/Kibra2025/FlowPlus/issues")
+set(CMAKE_PROJECT_REV_FQDN "io.github.kibra2025.FlowPlus")
+
+# Keep upstream target names and translation catalogs stable while giving the
+# installed application, services, and local IPC an independent identity.
+set(FLOWPLUS_APP_ID "flowplus")
+if(APPLE)
+  set(FLOWPLUS_GUI_TARGET FlowPlus)
+else()
+  set(FLOWPLUS_GUI_TARGET deskflow)
+endif()
 
 #Unset the vars used in the project call
 unset(DESKFLOW_VERSION_MAJOR)
@@ -230,8 +239,8 @@ elseif(BUILD_OSX_BUNDLE)
   set(CMAKE_INSTALL_BINDIR ${CMAKE_PROJECT_PROPER_NAME}.app/Contents/MacOS)
   set(CMAKE_INSTALL_LICENSE_DIR ${CMAKE_PROJECT_PROPER_NAME}.app/Contents/Resources)
 else()
-  set(CMAKE_INSTALL_LICENSE_DIR ${CMAKE_INSTALL_DATADIR}/licenses/${CMAKE_PROJECT_NAME})
-  set(CMAKE_INSTALL_I18N_DIR ${CMAKE_INSTALL_DATADIR}/${CMAKE_PROJECT_NAME}/translations)
+  set(CMAKE_INSTALL_LICENSE_DIR ${CMAKE_INSTALL_DATADIR}/licenses/${FLOWPLUS_APP_ID})
+  set(CMAKE_INSTALL_I18N_DIR ${CMAKE_INSTALL_DATADIR}/${FLOWPLUS_APP_ID}/translations)
 endif()
 
 add_subdirectory(docs)
@@ -254,4 +263,18 @@ install(
   FILES ${PROJECT_SOURCE_DIR}/LICENSES/LicenseRef-OpenSSL-Exception.txt
   DESTINATION ${CMAKE_INSTALL_LICENSE_DIR}
   RENAME LICENSE_EXCEPTION
+)
+
+install(
+  FILES ${PROJECT_SOURCE_DIR}/NOTICE.md ${PROJECT_SOURCE_DIR}/THIRD_PARTY_NOTICES.md
+  DESTINATION ${CMAKE_INSTALL_LICENSE_DIR}
+)
+install(
+  DIRECTORY ${PROJECT_SOURCE_DIR}/LICENSES/
+  DESTINATION ${CMAKE_INSTALL_LICENSE_DIR}/LICENSES
+  FILES_MATCHING PATTERN "*.txt"
+)
+install(
+  FILES ${PROJECT_SOURCE_DIR}/docs/third-party/LocalSend-LICENSE.txt
+  DESTINATION ${CMAKE_INSTALL_LICENSE_DIR}/docs/third-party
 )

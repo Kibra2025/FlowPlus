@@ -17,7 +17,7 @@ concurrency:
 
 env:
   GIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-  PACKAGE_PREFIX: "deskflow"
+  PACKAGE_PREFIX: "flowplus"
   PACKAGE_PATH: ./dist
   CMAKE_CONFIGURE: "cmake -Bbuild -DCMAKE_BUILD_TYPE=Release -DSKIP_BUILD_TESTS=ON -DCMAKE_COMPILE_WARNING_AS_ERROR=ON"
 
@@ -292,7 +292,7 @@ jobs:
             sudo -u build makepkg -s
             export OSNAME=$(cat /etc/os-release | grep ^ID= | sed 's/ID=//g')
             export ARCH=$(uname -m)
-            mv *.pkg.tar.zst deskflow-${{env.DESKFLOW_PACKAGE_VERSION}}-${OSNAME}-${ARCH}.pkg.tar.zst
+            mv *.pkg.tar.zst flowplus-${{env.DESKFLOW_PACKAGE_VERSION}}-${OSNAME}-${ARCH}.pkg.tar.zst
             cd ..
           fi
 
@@ -327,7 +327,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: package-${{ env.PACKAGE_PREFIX }}-${{ matrix.target.name }}
-          path: ${{github.workspace}}/build/deskflow[-_]*.*
+          path: ${{github.workspace}}/build/flowplus[-_]*.*
 
   # Technically, "unix" is a misnomer, but we use it here to mean "Unix-like BSD-derived".
   unix:
@@ -390,16 +390,16 @@ jobs:
         uses: ./.github/actions/get-version
 
       - name: Lint appsteam
-        run: flatpak-builder-lint appstream deploy/linux/org.deskflow.deskflow.metainfo.xml
+        run: flatpak-builder-lint appstream deploy/linux/io.github.kibra2025.FlowPlus.metainfo.xml
 
       - name: Lint manifest
-        run: flatpak-builder-lint manifest deploy/linux/flatpak/org.deskflow.deskflow.yml
+        run: flatpak-builder-lint manifest deploy/linux/flatpak/io.github.kibra2025.FlowPlus.yml
 
       - name: Build
         uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
-          bundle: deskflow-${{env.DESKFLOW_PACKAGE_VERSION}}-linux-${{matrix.flatpak.arch}}.flatpak
-          manifest-path: deploy/linux/flatpak/org.deskflow.deskflow.yml
+          bundle: flowplus-${{env.DESKFLOW_PACKAGE_VERSION}}-linux-${{matrix.flatpak.arch}}.flatpak
+          manifest-path: deploy/linux/flatpak/io.github.kibra2025.FlowPlus.yml
           cache-key: flatpak-builder-${{matrix.flatpak.arch}}-2.0
           arch: ${{matrix.flatpak.arch}}
           upload-artifact: false
@@ -411,7 +411,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: package-${{ env.PACKAGE_PREFIX }}-flatpak-${{matrix.flatpak.arch}}
-          path: ${{github.workspace}}/deskflow[-_]*.flatpak
+          path: ${{github.workspace}}/flowplus[-_]*.flatpak
 
   release:
     needs: ci-passed
@@ -432,10 +432,10 @@ jobs:
         id: generate_notes
         shell: bash
         run: |
-          mv $GITHUB_WORKSPACE/package-*/deskflow-* .
+          mv $GITHUB_WORKSPACE/package-*/flowplus-* .
           rm -rf $GITHUB_WORKSPACE/package-*
           echo "Build: ${{env.DESKFLOW_VERSION }}" > sums.txt
-          sha256sum deskflow-* >> sums.txt
+          sha256sum flowplus-* >> sums.txt
           export changes=$(git log --abbrev=8 --abbrev-commit --pretty=format:" - %s(%h) by %an" continuous..HEAD)
           echo -e "## Latest Changes:\n$changes" > changelog.txt
 
@@ -457,7 +457,7 @@ jobs:
           generate_release_notes: false
           body_path: changelog.txt
           files: |
-            deskflow-*
+            flowplus-*
             sums.txt
 
       - name: Deploy release
@@ -469,15 +469,5 @@ jobs:
           make_latest: true
           prerelease: false
           files: |
-            deskflow-*
+            flowplus-*
             sums.txt
-
-      - name: Update Homebrewtap
-        shell: bash
-        run: |
-          curl -L -X POST \
-          -H "Accept: application/vnd.github+json" \
-          -H "Authorization: Bearer ${{ secrets.DF_TAP_TOKEN }}" \
-          -H "X-GitHub-Api-Version: 2022-11-28" \
-          https://api.github.com/repos/deskflow/homebrew-tap/dispatches \
-          -d '{"event_type":"update_tap"}'

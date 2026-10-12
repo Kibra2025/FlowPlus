@@ -124,6 +124,7 @@ add_library(${target} STATIC
   transfer/DragOverlayWidget.h
   transfer/LocalSendService.cpp
   transfer/LocalSendService.h
+  transfer/TransferUtils.h
 )
 
 target_link_libraries(

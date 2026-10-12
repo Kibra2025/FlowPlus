@@ -9,12 +9,15 @@
 #include "common/Settings.h"
 #include "common/VersionInfo.h"
 
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLocale>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QProcess>
 #include <QRegularExpression>
+#include <QVersionNumber>
 #include <climits>
 
 VersionChecker::VersionChecker(QObject *parent) : QObject(parent), m_network{new QNetworkAccessManager(this)}
@@ -29,13 +32,15 @@ void VersionChecker::checkLatest() const
   auto request = QNetworkRequest(url);
   auto userAgent = QString("%1 %2 on %3").arg(kAppName, kVersion, QSysInfo::prettyProductName());
   request.setHeader(QNetworkRequest::UserAgentHeader, userAgent);
-  request.setRawHeader("X-Deskflow-Version", kVersion);
-  request.setRawHeader("X-Deskflow-Language", qPrintable(QLocale::system().name()));
+  request.setRawHeader("X-FlowPlus-Version", kVersion);
+  request.setRawHeader("X-FlowPlus-Language", qPrintable(QLocale::system().name()));
+  request.setTransferTimeout(15000);
   m_network->get(request);
 }
 
 void VersionChecker::replyFinished(QNetworkReply *reply)
 {
+  reply->deleteLater();
   const auto httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
   if (reply->error() != QNetworkReply::NoError) {
     qWarning("version check server error: %s", qPrintable(reply->errorString()));
@@ -46,8 +51,11 @@ void VersionChecker::replyFinished(QNetworkReply *reply)
 
   qDebug("version check server success, http status: %d", httpStatus);
 
-  const auto newestVersion = QString(reply->readAll());
-  reply->deleteLater();
+  const auto response = reply->readAll().trimmed();
+  const auto document = QJsonDocument::fromJson(response);
+  const auto newestVersion = document.isObject()
+                                 ? document.object().value(QStringLiteral("tag_name")).toString().trimmed()
+                                 : QString::fromUtf8(response);
   qDebug("version check response: %s", qPrintable(newestVersion));
 
   if (newestVersion.isEmpty()) {
@@ -79,12 +87,12 @@ int VersionChecker::getStageVersion(QString stage)
   if (stage.isEmpty() || stage == stableName) {
     return stableValue;
   } else if (stage.startsWith(rcName, Qt::CaseInsensitive)) {
-    static QRegularExpression re("\\d*", QRegularExpression::CaseInsensitiveOption);
-    auto match = re.match(stage);
+    static const QRegularExpression re(QStringLiteral("^\\d*$"));
+    auto match = re.match(stage.mid(2));
     if (match.hasMatch()) {
       // return the rc value plus the rc number (e.g. 2 + 1)
       // this should be ok since stable is max int.
-      return rcValue + match.captured(1).toInt();
+      return rcValue + qMin(match.captured(0).toInt(), INT_MAX - rcValue - 1);
     }
   } else if (stage == betaName) {
     return betaValue;
@@ -95,35 +103,23 @@ int VersionChecker::getStageVersion(QString stage)
 
 int VersionChecker::compareVersions(const QString &left, const QString &right)
 {
-  if (left.compare(right) == 0)
-    return 0; // versions are same.
+  static const QRegularExpression versionPattern(QStringLiteral("^v?(\\d+(?:\\.\\d+){2,3})(?:-([A-Za-z0-9.]+))?$"));
+  const auto leftMatch = versionPattern.match(left.trimmed());
+  const auto rightMatch = versionPattern.match(right.trimmed());
+  if (!leftMatch.hasMatch() || !rightMatch.hasMatch()) {
+    qWarning() << "ignoring invalid version response";
+    return 0;
+  }
 
-  QStringList leftParts = left.split("-");
-  QStringList rightParts = right.split("-");
+  const auto leftNumber = QVersionNumber::fromString(leftMatch.captured(1)).normalized();
+  const auto rightNumber = QVersionNumber::fromString(rightMatch.captured(1)).normalized();
+  const auto comparison = QVersionNumber::compare(rightNumber, leftNumber);
+  if (comparison != 0)
+    return comparison > 0 ? 1 : -1;
 
-  QString leftNumber = leftParts.at(0);
-  QString rightNumber = rightParts.at(0);
-
-  QStringList leftNumberParts = leftNumber.split(".");
-  QStringList rightNumberParts = rightNumber.split(".");
-
-  auto leftStagePart = leftParts.size() > 1 ? leftParts.at(1) : "";
-  auto rightStagePart = rightParts.size() > 1 ? rightParts.at(1) : "";
-
-  const int leftMajor = leftNumberParts.at(0).toInt();
-  const int leftMinor = leftNumberParts.at(1).toInt();
-  const int leftPatch = leftNumberParts.at(2).toInt();
-  const int leftStage = getStageVersion(leftStagePart);
-
-  const int rightMajor = rightNumberParts.at(0).toInt();
-  const int rightMinor = rightNumberParts.at(1).toInt();
-  const int rightPatch = rightNumberParts.at(2).toInt();
-  const int rightStage = getStageVersion(rightStagePart);
-
-  const bool rightWins =
-      (rightMajor > leftMajor) || ((rightMajor >= leftMajor) && (rightMinor > leftMinor)) ||
-      ((rightMajor >= leftMajor) && (rightMinor >= leftMinor) && (rightPatch > leftPatch)) ||
-      ((rightMajor >= leftMajor) && (rightMinor >= leftMinor) && (rightPatch >= leftPatch) && (rightStage > leftStage));
-
-  return rightWins ? 1 : -1;
+  const auto leftStage = getStageVersion(leftMatch.captured(2));
+  const auto rightStage = getStageVersion(rightMatch.captured(2));
+  if (leftStage == rightStage)
+    return 0;
+  return rightStage > leftStage ? 1 : -1;
 }

@@ -5,8 +5,10 @@
  */
 
 #include "DragDropManager.h"
+#include "TransferUtils.h"
 
 #include "common/Settings.h"
+#include "common/TransferProtocol.h"
 #include "deskflow/ProtocolTypes.h"
 #include "gui/core/CoreProcess.h"
 #include "gui/core/NetworkMonitor.h"
@@ -19,225 +21,273 @@
 #include <QDragMoveEvent>
 #include <QDropEvent>
 #include <QFileInfo>
-#include <QGuiApplication>
-#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QMessageBox>
 #include <QMimeData>
+#include <QPainter>
 #include <QScreen>
 #include <QStandardPaths>
+#include <QStorageInfo>
+#include <QUdpSocket>
 #include <QUrl>
+#include <QUuid>
+#include <QtEndian>
+
+#include <cstring>
 
 #if defined(Q_OS_WIN)
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
 #include <ShlObj.h>
 #include <Windows.h>
 #include <shellapi.h>
 #endif
 
 namespace deskflow::gui::transfer {
-
 namespace {
-QString extractLocalFilesFromMime(const QMimeData *mime, QStringList &outFiles)
+constexpr qint64 kChunkSize = 32 * 1024;
+constexpr int kUuidLength = 36;
+constexpr int kChunkHeaderSize = kUuidLength + sizeof(quint64);
+constexpr int kTransferTimeout = 30000;
+constexpr int kDragTimeout = deskflow::transfer::kDragLifetimeMs;
+
+QStringList localFilesFromMime(const QMimeData *mime)
 {
-  if (!mime || !mime->hasUrls()) {
-    return {};
-  }
-  for (const QUrl &url : mime->urls()) {
-    if (url.isLocalFile()) {
-      const QString localPath = url.toLocalFile();
-      if (QFileInfo(localPath).isFile() && !outFiles.contains(localPath)) {
-        outFiles.append(localPath);
+  QStringList files;
+  if (mime) {
+    for (const auto &url : mime->urls()) {
+      if (url.isLocalFile() && QFileInfo(url.toLocalFile()).isFile() && !files.contains(url.toLocalFile())) {
+        files.append(url.toLocalFile());
       }
     }
   }
-  return outFiles.isEmpty() ? QString() : outFiles.first();
+  return files;
 }
+
 } // namespace
 
-//
-// EdgeDropSensor
-//
-
-EdgeDropSensor::EdgeDropSensor(Edge edge, DragDropManager *manager, QWidget *parent)
-    : QWidget(
-          parent,
-          Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::WindowDoesNotAcceptFocus
-      ),
+EdgeDropSensor::EdgeDropSensor(Edge edge, DragDropManager *manager)
+    : QWidget(nullptr, Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::WindowDoesNotAcceptFocus),
       m_edge(edge),
       m_manager(manager)
 {
   setAcceptDrops(true);
   setAttribute(Qt::WA_ShowWithoutActivating, true);
   setAttribute(Qt::WA_TranslucentBackground, true);
-  setWindowOpacity(0.01);
 }
 
 void EdgeDropSensor::updateGeometryForScreen(const QRect &screenRect)
 {
-  constexpr int kThickness = 3;
+  constexpr int thickness = 4;
   switch (m_edge) {
   case Edge::Left:
-    setGeometry(screenRect.left(), screenRect.top(), kThickness, screenRect.height());
+    setGeometry(screenRect.left(), screenRect.top(), thickness, screenRect.height());
     break;
   case Edge::Right:
-    setGeometry(screenRect.right() - kThickness + 1, screenRect.top(), kThickness, screenRect.height());
+    setGeometry(screenRect.right() - thickness + 1, screenRect.top(), thickness, screenRect.height());
     break;
   case Edge::Top:
-    setGeometry(screenRect.left(), screenRect.top(), screenRect.width(), kThickness);
+    setGeometry(screenRect.left(), screenRect.top(), screenRect.width(), thickness);
     break;
   case Edge::Bottom:
-    setGeometry(screenRect.left(), screenRect.bottom() - kThickness + 1, screenRect.width(), kThickness);
+    setGeometry(screenRect.left(), screenRect.bottom() - thickness + 1, screenRect.width(), thickness);
     break;
   }
 }
 
+void EdgeDropSensor::paintEvent(QPaintEvent *)
+{
+  // Fully transparent Windows layered windows cannot receive native file drags.
+  QPainter(this).fillRect(rect(), QColor(0, 0, 0, 2));
+}
+
 void EdgeDropSensor::dragEnterEvent(QDragEnterEvent *event)
 {
-  QStringList files;
-  if (!extractLocalFilesFromMime(event->mimeData(), files).isEmpty()) {
-    event->acceptProposedAction();
-    if (m_manager) {
-      m_manager->stageFilesForDrag(files, true);
-    }
+  const auto files = localFilesFromMime(event->mimeData());
+  if (!files.isEmpty()) {
+    event->setDropAction(Qt::CopyAction);
+    event->accept();
+    m_manager->stageFilesForDrag(files);
   }
 }
 
 void EdgeDropSensor::dragMoveEvent(QDragMoveEvent *event)
 {
-  if (event->mimeData() && event->mimeData()->hasUrls()) {
-    event->acceptProposedAction();
+  if (!localFilesFromMime(event->mimeData()).isEmpty()) {
+    event->setDropAction(Qt::CopyAction);
+    event->accept();
   }
 }
 
 void EdgeDropSensor::dropEvent(QDropEvent *event)
 {
-  QStringList files;
-  if (!extractLocalFilesFromMime(event->mimeData(), files).isEmpty()) {
-    event->acceptProposedAction();
-    if (m_manager) {
-      m_manager->triggerImmediateSend(files, QCursor::pos());
-    }
+  // A local-edge release is an explicit send offer, not a remote native drop.
+  const auto files = localFilesFromMime(event->mimeData());
+  if (!files.isEmpty()) {
+    event->setDropAction(Qt::CopyAction);
+    event->accept();
+    m_manager->triggerImmediateSend(files);
   }
 }
-
-//
-// DragDropManager
-//
 
 DragDropManager::DragDropManager(deskflow::gui::CoreProcess &coreProcess, QObject *parent)
     : QObject(parent),
       m_coreProcess(coreProcess),
-      m_localSend{new LocalSendService(this)},
-      m_overlay{new DragOverlayWidget()}
+      m_localSend(new LocalSendService(this)),
+      m_overlay(new DragOverlayWidget())
 {
+  m_localSend->setAlias(Settings::value(Settings::Core::ComputerName).toString());
   m_localSend->start(kLocalSendDefaultPort);
-
-  m_edgeSensors.append(new EdgeDropSensor(EdgeDropSensor::Edge::Left, this));
-  m_edgeSensors.append(new EdgeDropSensor(EdgeDropSensor::Edge::Right, this));
-  m_edgeSensors.append(new EdgeDropSensor(EdgeDropSensor::Edge::Top, this));
-  m_edgeSensors.append(new EdgeDropSensor(EdgeDropSensor::Edge::Bottom, this));
-  updateEdgeSensors();
-
-  if (auto *primary = QGuiApplication::primaryScreen()) {
-    connect(primary, &QScreen::geometryChanged, this, [this](const QRect &) { updateEdgeSensors(); });
-  }
-
+  m_outgoingTimeout.setSingleShot(true);
+  m_incomingTimeout.setSingleShot(true);
+  connect(&m_outgoingTimeout, &QTimer::timeout, this, [this] { cancelOutgoing(tr("File transfer timed out")); });
+  connect(&m_incomingTimeout, &QTimer::timeout, this, [this] { cancelIncoming(tr("File transfer timed out")); });
+  connect(qGuiApp, &QGuiApplication::screenAdded, this, [this](QScreen *) { updateEdgeSensors(); });
+  connect(qGuiApp, &QGuiApplication::screenRemoved, this, [this](QScreen *) { updateEdgeSensors(); });
+  connect(&m_coreProcess, &CoreProcess::processStateChanged, this, [this](auto state) {
+    if (state != deskflow::core::ProcessState::Started) {
+      cancelOutgoing();
+      cancelIncoming({}, false);
+    } else {
+      m_localScreenActive = m_coreProcess.mode() == Settings::CoreMode::Server;
+    }
+    updateEdgeSensors();
+  });
+  connect(&m_coreProcess, &CoreProcess::connectionStateChanged, this, [this](auto state) {
+    if (state == deskflow::core::ConnectionState::Disconnected) {
+      cancelOutgoing();
+      cancelIncoming({}, false);
+      m_connectedScreens.clear();
+      m_lastRemoteScreen.clear();
+    }
+    updateEdgeSensors();
+  });
+  connect(&m_coreProcess, &CoreProcess::fileTransferPeersChanged, this, [this](const QStringList &screens) {
+    m_connectedScreens = screens;
+    if (!m_lastRemoteScreen.isEmpty() && !screens.contains(m_lastRemoteScreen)) {
+      m_lastRemoteScreen.clear();
+    }
+    if (!m_outgoingTargetScreen.isEmpty() && !screens.contains(m_outgoingTargetScreen) &&
+        m_coreProcess.mode() == Settings::CoreMode::Server) {
+      cancelOutgoing(tr("The destination disconnected"));
+    }
+    if (!m_incomingSourceScreen.isEmpty() && !screens.contains(m_incomingSourceScreen)) {
+      cancelIncoming(tr("The sender disconnected"), false);
+    }
+    updateEdgeSensors();
+  });
   connect(&m_coreProcess, &CoreProcess::screenSwitched, this, &DragDropManager::onScreenSwitched);
   connect(&m_coreProcess, &CoreProcess::clientScreenEntered, this, &DragDropManager::onClientScreenEntered);
   connect(&m_coreProcess, &CoreProcess::clientScreenLeft, this, &DragDropManager::onClientScreenLeft);
   connect(&m_coreProcess, &CoreProcess::mouseButtonUp, this, &DragDropManager::onMouseButtonUp);
-  connect(&m_coreProcess, &CoreProcess::dragInfoReceived, this, &DragDropManager::onDragInfoReceived);
-  connect(&m_coreProcess, &CoreProcess::fileChunkReceived, this, &DragDropManager::onFileChunkReceived);
-
+  connect(&m_coreProcess, &CoreProcess::dragCancelled, this, &DragDropManager::onDragCancelled);
+  connect(&m_coreProcess, &CoreProcess::dragInfoReceivedFrom, this, &DragDropManager::onDragInfoReceived);
+  connect(&m_coreProcess, &CoreProcess::fileChunkReceivedFrom, this, &DragDropManager::onFileChunkReceived);
   connect(m_overlay, &DragOverlayWidget::dropDetected, this, &DragDropManager::onOverlayDropDetected);
-
-  connect(m_localSend, &LocalSendService::deviceDiscovered, this, [this](const LocalSendDevice &dev) {
-    if (m_knownPeerIp.isEmpty() && !dev.ipAddress.isEmpty()) {
-      m_knownPeerIp = dev.ipAddress;
-    }
-    Q_EMIT statusMessage(tr("Dispositivo LocalSend rilevato: %1 (%2)").arg(dev.alias, dev.ipAddress));
-  });
-
-  connect(
-      m_localSend, &LocalSendService::transferStarted, this,
-      [this](const QString &, const QStringList &fileNames, qint64) {
-        const QString label = fileNames.isEmpty() ? tr("File") : fileNames.first();
-        m_overlay->showTransferring(label, 0);
-        Q_EMIT statusMessage(tr("Ricezione file in corso: %1").arg(fileNames.join(QStringLiteral(", "))));
-      }
-  );
-
   connect(
       m_localSend, &LocalSendService::transferProgress, this,
       [this](const QString &fileName, qint64 transferred, qint64 total) {
-        const int pct = total > 0 ? static_cast<int>((transferred * 100) / total) : 0;
-        if (m_overlay->isVisible()) {
-          m_overlay->showTransferring(fileName, pct);
+        const auto percent = transferProgressPercent(transferred, total);
+        if (m_incomingAccepted) {
+          m_incomingTimeout.start(kTransferTimeout);
+          m_overlay->showTransferring(fileName, percent);
         }
-        Q_EMIT transferProgressUpdated(fileName, pct);
+        if (m_outgoingSending) {
+          m_outgoingTimeout.start(kTransferTimeout);
+        }
+        Q_EMIT transferProgressUpdated(fileName, percent);
       }
   );
-
+  connect(m_localSend, &LocalSendService::transferCompleted, this, &DragDropManager::handleCompletedFiles);
   connect(
-      m_localSend, &LocalSendService::transferCompleted, this,
-      [this](const QStringList &paths, const QPoint &dropPos) { handleCompletedFiles(paths, dropPos); }
+      m_localSend, &LocalSendService::filesSent, this,
+      [this](const QStringList &, const QPoint &, const QString &id) {
+        if (id == m_outgoingId && m_outgoingSending) {
+          finishOutgoing();
+        }
+      }
   );
-
   connect(m_localSend, &LocalSendService::transferFailed, this, &DragDropManager::onLocalSendTransferFailed);
+  connect(
+      m_localSend, &LocalSendService::incomingTransferFailed, this,
+      [this](const QString &reason, const QString &id) {
+        if (id == m_incomingId) {
+          cancelIncoming(reason);
+        }
+      }
+  );
+  updateEdgeSensors();
 }
 
 DragDropManager::~DragDropManager()
 {
-  for (auto *sensor : m_edgeSensors) {
-    sensor->hide();
-    delete sensor;
-  }
-  m_edgeSensors.clear();
-
-  if (m_tunnelIncomingFile) {
-    m_tunnelIncomingFile->close();
-    delete m_tunnelIncomingFile;
-    m_tunnelIncomingFile = nullptr;
-  }
-
+  // MainWindow owns CoreProcess as a value member, but this manager as a QObject
+  // child. The value member may already be gone during QObject child teardown.
+  m_localSend->cancelOutgoingTransfer(m_outgoingId);
+  m_outgoingId.clear();
+  cancelOutgoing();
+  cancelIncoming({}, false);
+  qDeleteAll(m_edgeSensors);
   delete m_overlay;
+}
+
+bool DragDropManager::canTransfer() const
+{
+  if (!m_coreProcess.isStarted() || !Settings::value(Settings::Security::TlsEnabled).toBool()) {
+    return false;
+  }
+  return m_coreProcess.mode() == Settings::CoreMode::Server
+             ? !m_connectedScreens.isEmpty()
+             : !m_connectedScreens.isEmpty() &&
+                   m_coreProcess.connectionState() == deskflow::core::ConnectionState::Connected;
 }
 
 void DragDropManager::updateEdgeSensors()
 {
-  QScreen *screen = QGuiApplication::primaryScreen();
-  if (!screen) {
+  for (auto *sensor : m_edgeSensors) {
+    sensor->hide();
+    sensor->deleteLater();
+  }
+  m_edgeSensors.clear();
+  if (!canTransfer()) {
     return;
   }
-  const QRect geom = screen->geometry();
-  for (auto *sensor : m_edgeSensors) {
-    sensor->updateGeometryForScreen(geom);
-    sensor->show();
+  for (auto *screen : QGuiApplication::screens()) {
+    connect(screen, &QScreen::geometryChanged, this, &DragDropManager::updateEdgeSensors, Qt::UniqueConnection);
+    for (const auto edge :
+         {EdgeDropSensor::Edge::Left, EdgeDropSensor::Edge::Right, EdgeDropSensor::Edge::Top,
+          EdgeDropSensor::Edge::Bottom}) {
+      auto *sensor = new EdgeDropSensor(edge, this);
+      sensor->updateGeometryForScreen(screen->geometry());
+      sensor->show();
+      m_edgeSensors.append(sensor);
+    }
   }
 }
 
 void DragDropManager::setKnownPeerAddress(const QString &peerAddress)
 {
-  QString cleaned = peerAddress.trimmed();
-  if (cleaned.contains(':')) {
-    const auto parts = cleaned.split(':');
-    if (parts.size() == 2) {
-      cleaned = parts.first();
-    }
-  }
-  if (!cleaned.isEmpty()) {
-    m_knownPeerIp = cleaned;
-  }
+  const auto input = peerAddress.trimmed();
+  const QHostAddress address(input);
+  m_knownPeerIp = address.isNull() ? QUrl(QStringLiteral("flowplus://") + input).host() : address.toString();
 }
 
-QString DragDropManager::resolveLocalIpAddress() const
+QString DragDropManager::resolveLocalIpAddress(const QString &peerAddress) const
 {
-  const QStringList validIps = NetworkMonitor::validAddresses();
-  if (!validIps.isEmpty()) {
-    return validIps.first();
+  // Use the actual route when possible; the first adapter may not be the VPN.
+  const QHostAddress peer(peerAddress);
+  if (!peer.isNull()) {
+    QUdpSocket routeProbe;
+    routeProbe.connectToHost(peer, kLocalSendDefaultPort);
+    const auto local = routeProbe.localAddress();
+    if (!local.isNull() && local != QHostAddress::Any && local != QHostAddress::AnyIPv6) {
+      return local.toString();
+    }
   }
-  return QStringLiteral("127.0.0.1");
+  const auto addresses = NetworkMonitor::validAddresses();
+  return addresses.isEmpty() ? QString() : addresses.first();
 }
 
 QString DragDropManager::formatFileSize(qint64 bytes)
@@ -246,387 +296,795 @@ QString DragDropManager::formatFileSize(qint64 bytes)
     return QStringLiteral("%1 B").arg(bytes);
   }
   if (bytes < 1024 * 1024) {
-    return QStringLiteral("%1 KB").arg(QString::number(bytes / 1024.0, 'f', 1));
+    return QStringLiteral("%1 KiB").arg(QString::number(bytes / 1024.0, 'f', 1));
   }
-  return QStringLiteral("%1 MB").arg(QString::number(bytes / (1024.0 * 1024.0), 'f', 1));
+  if (bytes < 1024LL * 1024 * 1024) {
+    return QStringLiteral("%1 MiB").arg(QString::number(bytes / (1024.0 * 1024.0), 'f', 1));
+  }
+  return QStringLiteral("%1 GiB").arg(QString::number(bytes / (1024.0 * 1024.0 * 1024.0), 'f', 1));
+}
+
+bool DragDropManager::stageFiles(const QStringList &filePaths)
+{
+  if (!canTransfer()) {
+    Q_EMIT statusMessage(tr("Connect a FlowPlus peer with TLS enabled before sending files"));
+    return false;
+  }
+  if (m_outgoingSending || !m_incomingId.isEmpty()) {
+    Q_EMIT statusMessage(tr("Wait for the current transfer to finish"));
+    return false;
+  }
+  QStringList files;
+  QJsonArray manifest;
+  for (const auto &path : filePaths) {
+    const QFileInfo info(path);
+    const auto canonical = info.canonicalFilePath();
+    if (!info.isFile() || !info.isReadable() || canonical.isEmpty()) {
+      cancelOutgoing(tr("Some selected files cannot be read"));
+      return false;
+    }
+    if (!files.contains(canonical)) {
+      files.append(canonical);
+      manifest.append(
+          QJsonObject{
+              {QStringLiteral("fileName"), QFileInfo(canonical).fileName()}, {QStringLiteral("size"), info.size()}
+          }
+      );
+    }
+  }
+  qint64 total = 0;
+  if (!validateTransferManifest(manifest, total)) {
+    cancelOutgoing(tr("Choose at most %1 files, totaling at most %2, with portable file names")
+                       .arg(kMaxTransferFiles)
+                       .arg(formatFileSize(kMaxTransferBytes)));
+    return false;
+  }
+  if (m_stagedFiles == files && m_outgoingManifest == manifest && !m_outgoingId.isEmpty()) {
+    m_outgoingTimeout.start(kDragTimeout);
+    return true;
+  }
+  cancelOutgoing();
+  m_stagedFiles = files;
+  m_outgoingManifest = manifest;
+  m_outgoingId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+  m_outgoingIsDrag = true;
+  m_outgoingTargetScreen = m_lastRemoteScreen;
+  if (m_coreProcess.mode() == Settings::CoreMode::Server && m_outgoingTargetScreen.isEmpty() &&
+      m_connectedScreens.size() == 1) {
+    m_outgoingTargetScreen = m_connectedScreens.first();
+  }
+  m_outgoingTimeout.start(kDragTimeout);
+  Q_EMIT statusMessage(tr("Files ready: %1 (%2)").arg(files.size()).arg(formatFileSize(total)));
+  return true;
+}
+
+bool DragDropManager::sendDragMessage(QJsonObject message, const QString &targetScreen)
+{
+  return m_coreProcess.sendStartDrag(QJsonDocument(message).toJson(QJsonDocument::Compact), targetScreen);
+}
+
+void DragDropManager::advertiseFiles(const QString &action)
+{
+  if (m_outgoingId.isEmpty()) {
+    return;
+  }
+  m_outgoingAdvertisedIp = resolveLocalIpAddress(m_knownPeerIp);
+  const QJsonObject offer{
+      {QStringLiteral("action"), action},
+      {QStringLiteral("transferId"), m_outgoingId},
+      {QStringLiteral("senderIp"), m_outgoingAdvertisedIp},
+      {QStringLiteral("senderPort"), m_localSend->serverPort()},
+      {QStringLiteral("files"), m_outgoingManifest}
+  };
+  if (!sendDragMessage(offer, m_outgoingTargetScreen)) {
+    cancelOutgoing(tr("The destination is not available"));
+  }
 }
 
 void DragDropManager::stageFilesForDrag(const QStringList &filePaths, bool notifyPeerImmediately)
 {
-  QStringList valid;
-  qint64 totalBytes = 0;
-  QJsonArray filesArr;
-
-  for (const QString &path : filePaths) {
-    const QFileInfo fi(path);
-    if (fi.exists() && fi.isFile()) {
-      valid.append(fi.absoluteFilePath());
-      totalBytes += fi.size();
-      QJsonObject fObj;
-      fObj[QStringLiteral("fileName")] = fi.fileName();
-      fObj[QStringLiteral("size")] = fi.size();
-      filesArr.append(fObj);
-    }
-  }
-
-  if (valid.isEmpty()) {
-    return;
-  }
-
-  m_stagedFiles = valid;
-  Q_EMIT statusMessage(
-      tr("File pronti per il trascinamento cross-device: %1 (%2)")
-          .arg(QFileInfo(valid.first()).fileName(), formatFileSize(totalBytes))
-  );
-
-  if (notifyPeerImmediately) {
-    QJsonObject msg;
-    msg[QStringLiteral("action")] = QStringLiteral("dragStart");
-    msg[QStringLiteral("senderIp")] = resolveLocalIpAddress();
-    msg[QStringLiteral("senderPort")] = static_cast<int>(m_localSend->serverPort());
-    msg[QStringLiteral("files")] = filesArr;
-    msg[QStringLiteral("totalBytes")] = totalBytes;
-
-    const QByteArray payload = QJsonDocument(msg).toJson(QJsonDocument::Compact);
-    m_coreProcess.sendStartDrag(payload);
+  if (stageFiles(filePaths) && notifyPeerImmediately) {
+    advertiseFiles(QStringLiteral("dragStart"));
   }
 }
 
 void DragDropManager::triggerImmediateSend(const QStringList &filePaths, const QPoint &dropPos)
 {
-  stageFilesForDrag(filePaths, true);
-
-  QString peerIp = m_knownPeerIp;
-  if (peerIp.isEmpty()) {
-    const QString remoteHost = Settings::value(Settings::Client::RemoteHost).toString();
-    if (!remoteHost.isEmpty()) {
-      peerIp = remoteHost.split(':').first();
-    } else if (!m_localSend->discoveredDevices().isEmpty()) {
-      peerIp = m_localSend->discoveredDevices().first().ipAddress;
-    }
+  Q_UNUSED(dropPos)
+  if (!stageFiles(filePaths)) {
+    return;
   }
-
-  if (!peerIp.isEmpty()) {
-    Q_EMIT statusMessage(tr("Avvio trasferimento LocalSend verso %1...").arg(peerIp));
-    m_localSend->sendFiles(peerIp, kLocalSendDefaultPort, m_stagedFiles, dropPos);
-  } else {
-    // Use active FlowPlus TCP/TLS stream directly
-    sendFilesViaTunnel(m_stagedFiles, dropPos);
+  if (m_coreProcess.mode() == Settings::CoreMode::Server && m_outgoingTargetScreen.isEmpty()) {
+    cancelOutgoing(tr("Move the pointer onto the destination screen before choosing Send files"));
+    return;
+  }
+  m_outgoingIsDrag = false;
+  advertiseFiles(QStringLiteral("transferOffer"));
+  if (!m_outgoingId.isEmpty()) {
+    Q_EMIT statusMessage(tr("Waiting for the destination to accept the files"));
   }
 }
 
 void DragDropManager::onScreenSwitched(const QString &screenName, bool isPrimary, int x, int y)
 {
-  Q_UNUSED(screenName)
   Q_UNUSED(x)
   Q_UNUSED(y)
-
+  m_localScreenActive = isPrimary;
   if (!isPrimary) {
-    // If the user copied files to clipboard before crossing the screen edge while dragging, stage them automatically
-    if (m_stagedFiles.isEmpty()) {
-      QStringList clipFiles;
-      if (!extractLocalFilesFromMime(QGuiApplication::clipboard()->mimeData(), clipFiles).isEmpty() &&
-          (QGuiApplication::mouseButtons() & Qt::LeftButton)) {
-        stageFilesForDrag(clipFiles, true);
+    m_lastRemoteScreen = screenName;
+    if (!m_outgoingId.isEmpty() && !m_outgoingSending && m_outgoingIsDrag) {
+      if (!m_outgoingTargetScreen.isEmpty() && m_outgoingTargetScreen != screenName) {
+        sendDragMessage(
+            {{QStringLiteral("action"), QStringLiteral("dragCancel")}, {QStringLiteral("transferId"), m_outgoingId}},
+            m_outgoingTargetScreen
+        );
       }
+      m_outgoingTargetScreen = screenName;
+      advertiseFiles(QStringLiteral("dragStart"));
+    }
+    if (m_remoteDragActive) {
+      cancelIncoming({}, false);
     }
   } else {
-    if (m_remoteDragActive) {
-      m_remoteDragActive = false;
-      m_overlay->hideOverlay();
-    }
+    showIncomingDrag();
   }
 }
 
-void DragDropManager::onClientScreenEntered(int x, int y)
+void DragDropManager::onClientScreenEntered(int, int)
 {
-  Q_UNUSED(x)
-  Q_UNUSED(y)
+  m_localScreenActive = true;
+  showIncomingDrag();
 }
 
 void DragDropManager::onClientScreenLeft()
 {
+  m_localScreenActive = false;
   if (m_remoteDragActive) {
-    m_remoteDragActive = false;
-    m_overlay->hideOverlay();
+    // Leaving a hovered receiver continues the same drag on another screen.
+    // Only an actual rejection/cancel should abort the sender's staged files.
+    cancelIncoming({}, false);
   }
 }
 
-void DragDropManager::onMouseButtonUp(const QString &screenName, int x, int y)
+void DragDropManager::onMouseButtonUp(const QString &, int, int)
 {
-  Q_UNUSED(screenName)
-  if (m_remoteDragActive && m_overlay->state() == DragOverlayWidget::State::Dragging) {
-    onOverlayDropDetected(QPoint(x, y));
+  if (m_localScreenActive && m_remoteDragActive && !m_incomingAccepted) {
+    onOverlayDropDetected(QCursor::pos());
+  } else if (m_localScreenActive && !m_outgoingId.isEmpty() && !m_outgoingSending && m_outgoingIsDrag) {
+    cancelOutgoing();
   }
 }
 
-void DragDropManager::onDragInfoReceived(uint32_t fileCount, const QByteArray &payload)
+void DragDropManager::onDragCancelled(const QString &transferId)
 {
-  Q_UNUSED(fileCount)
-  const QJsonDocument doc = QJsonDocument::fromJson(payload);
+  if (transferId == m_outgoingId && m_outgoingIsDrag && !m_outgoingSending) {
+    cancelOutgoing(tr("File drag canceled"));
+  }
+  if (transferId == m_incomingId && m_remoteDragActive && !m_incomingAccepted) {
+    cancelIncoming(tr("File drag canceled"), false);
+  }
+}
+
+void DragDropManager::showIncomingDrag()
+{
+  if (!m_remoteDragActive || !m_localScreenActive || m_incomingAccepted) {
+    return;
+  }
+  qint64 total = 0;
+  if (!validateTransferManifest(m_incomingManifest, total)) {
+    cancelIncoming();
+    return;
+  }
+  const auto summary = m_incomingManifest.size() == 1
+                           ? tr("%1 (%2)").arg(
+                                 m_incomingManifest.first().toObject().value(QStringLiteral("fileName")).toString(),
+                                 formatFileSize(total)
+                             )
+                           : tr("%1 files (%2)").arg(m_incomingManifest.size()).arg(formatFileSize(total));
+  m_overlay->showDragging(summary, tr("Release the left mouse button to receive these files"));
+}
+
+void DragDropManager::onDragInfoReceived(const QString &sourceScreen, uint32_t, const QByteArray &payload)
+{
+  if (sourceScreen.isEmpty() || payload.size() > 128 * 1024 || !canTransfer()) {
+    return;
+  }
+  const auto doc = QJsonDocument::fromJson(payload);
   if (!doc.isObject()) {
     return;
   }
-
-  const QJsonObject obj = doc.object();
-  const QString action = obj.value(QStringLiteral("action")).toString();
-
-  if (action == QStringLiteral("dragStart")) {
-    m_incomingSenderIp = obj.value(QStringLiteral("senderIp")).toString();
-    m_incomingSenderPort =
-        static_cast<quint16>(obj.value(QStringLiteral("senderPort")).toInt(kLocalSendDefaultPort));
-    if (!m_incomingSenderIp.isEmpty()) {
-      m_knownPeerIp = m_incomingSenderIp;
-    }
-
-    const QJsonArray filesArr = obj.value(QStringLiteral("files")).toArray();
-    const qint64 totalBytes = static_cast<qint64>(obj.value(QStringLiteral("totalBytes")).toDouble(0));
-    if (filesArr.isEmpty()) {
-      return;
-    }
-
-    const QString firstFile = filesArr.first().toObject().value(QStringLiteral("fileName")).toString(tr("File"));
-    const QString summary = filesArr.size() == 1
-                                ? QStringLiteral("📄 %1 (%2)").arg(firstFile, formatFileSize(totalBytes))
-                                : tr("📄 %1 file (%2)").arg(filesArr.size()).arg(formatFileSize(totalBytes));
-
-    m_remoteDragActive = true;
-    m_overlay->showDragging(summary, tr("Rilascia il mouse per scaricare qui via FlowPlus"));
-    Q_EMIT statusMessage(tr("Trascinamento file in ingresso da %1: %2").arg(m_incomingSenderIp, summary));
+  const auto message = doc.object();
+  const auto action = message.value(QStringLiteral("action")).toString();
+  const auto id = message.value(QStringLiteral("transferId")).toString();
+  if (!isValidTransferId(id)) {
     return;
   }
-
+  // Only the authenticated primary can report cancellation of its shared input
+  // gesture to a secondary source, regardless of that source's current target.
+  if (action == QStringLiteral("dragCancelled") && m_coreProcess.mode() == Settings::CoreMode::Client &&
+      m_connectedScreens.contains(sourceScreen)) {
+    onDragCancelled(id);
+    return;
+  }
+  if (action == QStringLiteral("dragStart") || action == QStringLiteral("transferOffer")) {
+    qint64 total = 0;
+    const auto manifest = message.value(QStringLiteral("files")).toArray();
+    if (m_incomingAccepted && id == m_incomingId && sourceScreen == m_incomingSourceScreen &&
+        manifest == m_incomingManifest) {
+      return;
+    }
+    if (!validateTransferManifest(manifest, total) || !m_outgoingId.isEmpty() || m_incomingAccepted ||
+        (!m_incomingId.isEmpty() && (id != m_incomingId || sourceScreen != m_incomingSourceScreen))) {
+      sendDragMessage(
+          {{QStringLiteral("action"), QStringLiteral("dragCancel")}, {QStringLiteral("transferId"), id}}, sourceScreen
+      );
+      return;
+    }
+    if (!m_incomingId.isEmpty() && manifest != m_incomingManifest) {
+      cancelIncoming(tr("The incoming file offer changed"));
+      return;
+    }
+    m_incomingId = id;
+    m_incomingSourceScreen = sourceScreen;
+    const QHostAddress advertised(message.value(QStringLiteral("senderIp")).toString());
+    m_incomingSenderIp = advertised.isNull() ? QString() : advertised.toString();
+    m_incomingManifest = manifest;
+    m_incomingTimeout.start(kDragTimeout);
+    m_remoteDragActive = action == QStringLiteral("dragStart");
+    if (m_remoteDragActive) {
+      showIncomingDrag();
+    } else if (!m_offerDialog) {
+      m_overlay->hideOverlay();
+      auto *dialog = new QMessageBox(
+          QMessageBox::Question, tr("Receive files with FlowPlus"),
+          tr("Receive %1 files (%2) from %3?").arg(manifest.size()).arg(formatFileSize(total), sourceScreen),
+          QMessageBox::Yes | QMessageBox::No
+      );
+      dialog->setAttribute(Qt::WA_DeleteOnClose);
+      dialog->setTextFormat(Qt::PlainText);
+      dialog->setDefaultButton(QMessageBox::No);
+      m_offerDialog = dialog;
+      connect(dialog, &QMessageBox::finished, this, [this, id](int result) {
+        m_offerDialog = nullptr;
+        if (id == m_incomingId && !m_incomingAccepted) {
+          if (result == QMessageBox::Yes) {
+            acceptIncomingTransfer(false, QPoint(-1, -1));
+          } else {
+            cancelIncoming();
+          }
+        }
+      });
+      dialog->open();
+    }
+    return;
+  }
+  if (action == QStringLiteral("dragCancel")) {
+    if (id == m_incomingId && sourceScreen == m_incomingSourceScreen) {
+      cancelIncoming(tr("The sender canceled the transfer"), false);
+    } else if (id == m_outgoingId && sourceScreen == m_outgoingTargetScreen) {
+      cancelOutgoing(tr("The destination declined or canceled the transfer"));
+    }
+    return;
+  }
+  if (id != m_outgoingId || m_outgoingId.isEmpty() ||
+      (!m_outgoingTargetScreen.isEmpty() && sourceScreen != m_outgoingTargetScreen)) {
+    return;
+  }
   if (action == QStringLiteral("dropTrigger")) {
-    const QString receiverIp = obj.value(QStringLiteral("receiverIp")).toString();
-    const quint16 receiverPort =
-        static_cast<quint16>(obj.value(QStringLiteral("receiverPort")).toInt(kLocalSendDefaultPort));
-    const QPoint dropPos(obj.value(QStringLiteral("dropX")).toInt(-1), obj.value(QStringLiteral("dropY")).toInt(-1));
-
-    if (!m_stagedFiles.isEmpty()) {
-      const QString targetHost = !receiverIp.isEmpty() ? receiverIp : m_knownPeerIp;
-      const QStringList filesToTransfer = m_stagedFiles;
-      m_stagedFiles.clear();
-      m_coreProcess.sendClearDrag();
-
-      if (!targetHost.isEmpty()) {
-        Q_EMIT statusMessage(tr("Rilascio rilevato! Invio file via LocalSend a %1...").arg(targetHost));
-        m_localSend->sendFiles(targetHost, receiverPort, filesToTransfer, dropPos);
-      } else {
-        sendFilesViaTunnel(filesToTransfer, dropPos);
+    if (m_outgoingSending || m_stagedFiles.isEmpty()) {
+      return;
+    }
+    for (int index = 0; index < m_stagedFiles.size(); ++index) {
+      if (QFileInfo(m_stagedFiles.at(index)).size() !=
+          static_cast<qint64>(m_outgoingManifest.at(index).toObject().value(QStringLiteral("size")).toDouble(-1))) {
+        cancelOutgoing(tr("A selected file changed during the drag"));
+        return;
       }
     }
+    m_outgoingTargetScreen = sourceScreen;
+    m_outgoingSending = true;
+    m_outgoingTimeout.start(kTransferTimeout);
+    const QHostAddress receiver(message.value(QStringLiteral("receiverIp")).toString());
+    const auto port = message.value(QStringLiteral("receiverPort")).toInt();
+    // The HTTP grant binds our advertised IP. A relayed drag may use another
+    // adapter to reach the final receiver; that transfer should use TLS directly.
+    const QHostAddress routedSource(resolveLocalIpAddress(receiver.toString()));
+    if (receiver.isNull() || (!receiver.isPrivateUse() && !receiver.isLoopback()) || port <= 0 || port > 65535 ||
+        routedSource.isNull() || routedSource != QHostAddress(m_outgoingAdvertisedIp)) {
+      sendFilesViaTunnel(m_stagedFiles);
+    } else {
+      m_localSend->sendFiles(
+          receiver.toString(), static_cast<quint16>(port), m_stagedFiles, QPoint(-1, -1), m_outgoingId
+      );
+    }
+    return;
+  }
+  if (!m_outgoingSending || !m_tunnelOutgoingFile ||
+      message.value(QStringLiteral("fileIndex")).toInt(-1) != m_tunnelOutgoingIndex ||
+      message.value(QStringLiteral("receivedBytes")).toDouble(-1) != m_tunnelOutgoingOffset) {
+    return;
+  }
+  if ((action == QStringLiteral("tunnelReady") && m_tunnelPhase == TunnelPhase::AwaitingReady) ||
+      (action == QStringLiteral("tunnelAck") && m_tunnelPhase == TunnelPhase::AwaitingChunk)) {
+    m_outgoingTimeout.start(kTransferTimeout);
+    sendNextTunnelChunk();
+  } else if (action == QStringLiteral("tunnelComplete") && m_tunnelPhase == TunnelPhase::AwaitingComplete) {
+    m_tunnelOutgoingFile.reset();
+    ++m_tunnelOutgoingIndex;
+    startNextTunnelFile();
   }
 }
 
 void DragDropManager::onOverlayDropDetected(const QPoint &screenPos)
 {
-  if (!m_remoteDragActive) {
+  if (m_remoteDragActive && m_localScreenActive && !m_incomingAccepted) {
+    acceptIncomingTransfer(true, screenPos);
+  }
+}
+
+void DragDropManager::acceptIncomingTransfer(bool nativeDrop, const QPoint &dropPos)
+{
+  if (m_incomingId.isEmpty() || m_incomingAccepted) {
     return;
   }
+  qint64 total = 0;
+  if (!validateTransferManifest(m_incomingManifest, total) || !QDir().mkpath(m_localSend->downloadDirectory())) {
+    cancelIncoming(tr("Could not prepare the download folder"));
+    return;
+  }
+  const QStorageInfo storage(m_localSend->downloadDirectory());
+  if (storage.isValid() && storage.bytesAvailable() >= 0 && total > storage.bytesAvailable()) {
+    cancelIncoming(tr("Not enough space to receive the files"));
+    return;
+  }
+  m_incomingAccepted = true;
   m_remoteDragActive = false;
-  m_overlay->showTransferring(tr("Connessione in corso..."), 0);
+  m_incomingNativeDrop = nativeDrop;
+  m_incomingDropPos = dropPos;
+  if (nativeDrop) {
+    captureNativeDropTarget();
+  }
+  const bool directAuthorized =
+      m_localSend->authorizeIncomingTransfer(m_incomingSenderIp, m_incomingId, m_incomingManifest, dropPos);
+  m_incomingTimeout.start(kTransferTimeout);
+  m_overlay->showTransferring(tr("Connecting…"), 0);
+  if (!sendDragMessage(
+          {{QStringLiteral("action"), QStringLiteral("dropTrigger")},
+           {QStringLiteral("transferId"), m_incomingId},
+           {QStringLiteral("receiverIp"), resolveLocalIpAddress(m_incomingSenderIp)},
+           {QStringLiteral("receiverPort"), directAuthorized ? m_localSend->serverPort() : 0}},
+          m_incomingSourceScreen
+      )) {
+    cancelIncoming(tr("The sender is not available"));
+  }
+}
 
-  QJsonObject dropMsg;
-  dropMsg[QStringLiteral("action")] = QStringLiteral("dropTrigger");
-  dropMsg[QStringLiteral("receiverIp")] = resolveLocalIpAddress();
-  dropMsg[QStringLiteral("receiverPort")] = static_cast<int>(m_localSend->serverPort());
-  dropMsg[QStringLiteral("dropX")] = screenPos.x();
-  dropMsg[QStringLiteral("dropY")] = screenPos.y();
+void DragDropManager::cancelOutgoing(const QString &reason)
+{
+  const auto id = m_outgoingId;
+  m_outgoingId.clear();
+  m_outgoingSending = false;
+  if (!id.isEmpty()) {
+    m_localSend->cancelOutgoingTransfer(id);
+    sendDragMessage(
+        {{QStringLiteral("action"), QStringLiteral("dragCancel")}, {QStringLiteral("transferId"), id}},
+        m_outgoingTargetScreen
+    );
+    m_coreProcess.sendClearDrag();
+  }
+  m_outgoingTimeout.stop();
+  m_outgoingTargetScreen.clear();
+  m_outgoingAdvertisedIp.clear();
+  m_stagedFiles.clear();
+  m_outgoingManifest = {};
+  m_tunnelOutgoingPaths.clear();
+  m_tunnelOutgoingFile.reset();
+  m_tunnelOutgoingIndex = 0;
+  m_tunnelOutgoingOffset = 0;
+  m_tunnelPhase = TunnelPhase::Idle;
+  if (!reason.isEmpty()) {
+    Q_EMIT statusMessage(reason);
+  }
+}
 
-  const QByteArray payload = QJsonDocument(dropMsg).toJson(QJsonDocument::Compact);
-  m_coreProcess.sendStartDrag(payload);
+void DragDropManager::cancelIncoming(const QString &reason, bool notifyPeer)
+{
+  const auto id = m_incomingId;
+  const auto sourceScreen = m_incomingSourceScreen;
+  m_incomingId.clear();
+  if (!id.isEmpty()) {
+    if (notifyPeer) {
+      sendDragMessage(
+          {{QStringLiteral("action"), QStringLiteral("dragCancel")}, {QStringLiteral("transferId"), id}}, sourceScreen
+      );
+    }
+    m_localSend->clearIncomingAuthorization(id);
+  }
+  if (m_offerDialog) {
+    m_offerDialog->close();
+    m_offerDialog = nullptr;
+  }
+  m_incomingTimeout.stop();
+  m_incomingSourceScreen.clear();
+  m_incomingSenderIp.clear();
+  m_incomingManifest = {};
+  m_remoteDragActive = false;
+  m_incomingAccepted = false;
+  m_incomingNativeDrop = false;
+  m_tunnelIncomingFile.reset();
+  m_tunnelIncomingFiles.clear();
+  m_tunnelIncomingIndex = 0;
+  m_tunnelIncomingReceivedBytes = 0;
+  m_nativeDropTarget = 0;
+  m_overlay->hideOverlay();
+  if (!reason.isEmpty()) {
+    Q_EMIT statusMessage(reason);
+  }
+}
+
+void DragDropManager::finishOutgoing()
+{
+  // Do not send cancellation after the peer acknowledged successful receipt.
+  m_outgoingId.clear();
+  cancelOutgoing();
+  m_coreProcess.sendClearDrag();
+  Q_EMIT statusMessage(tr("Files received successfully by the destination"));
 }
 
 void DragDropManager::onLocalSendTransferFailed(
-    const QString &reason, const QStringList &originalFiles, const QPoint &dropPos
+    const QString &reason, const QStringList &originalFiles, const QPoint &, bool allowFallback,
+    const QString &transferId
 )
 {
-  qWarning() << "LocalSend direct HTTP transfer failed (" << reason << "), falling back to FlowPlus TLS tunnel";
-  Q_EMIT statusMessage(tr("Fallback su tunnel crittografato FlowPlus in corso..."));
-  sendFilesViaTunnel(originalFiles, dropPos);
+  if (transferId != m_outgoingId || !m_outgoingSending) {
+    return;
+  }
+  if (!allowFallback) {
+    cancelOutgoing(reason);
+    return;
+  }
+  Q_EMIT statusMessage(tr("Direct transfer unavailable; using the connected FlowPlus TLS channel"));
+  sendFilesViaTunnel(originalFiles);
 }
 
-void DragDropManager::sendFilesViaTunnel(const QStringList &filePaths, const QPoint &dropPos)
+void DragDropManager::sendFilesViaTunnel(const QStringList &filePaths)
 {
-  constexpr qint64 kChunkSize = 32 * 1024;
-  for (const QString &filePath : filePaths) {
-    QFile file(filePath);
-    if (!file.open(QIODevice::ReadOnly)) {
-      continue;
+  if (!m_outgoingSending || filePaths != m_stagedFiles || !canTransfer()) {
+    cancelOutgoing(tr("Cannot start the FlowPlus transfer"));
+    return;
+  }
+  m_tunnelOutgoingPaths = filePaths;
+  m_tunnelOutgoingIndex = 0;
+  startNextTunnelFile();
+}
+
+void DragDropManager::startNextTunnelFile()
+{
+  if (m_tunnelOutgoingIndex >= m_tunnelOutgoingPaths.size()) {
+    finishOutgoing();
+    return;
+  }
+  m_tunnelOutgoingFile = std::make_unique<QFile>(m_tunnelOutgoingPaths.at(m_tunnelOutgoingIndex));
+  const auto meta = m_outgoingManifest.at(m_tunnelOutgoingIndex).toObject();
+  if (!m_tunnelOutgoingFile->open(QIODevice::ReadOnly) ||
+      m_tunnelOutgoingFile->size() != static_cast<qint64>(meta.value(QStringLiteral("size")).toDouble(-1))) {
+    cancelOutgoing(tr("Could not read the selected file, or its size changed"));
+    return;
+  }
+  m_tunnelOutgoingOffset = 0;
+  auto startMeta = meta;
+  startMeta[QStringLiteral("transferId")] = m_outgoingId;
+  startMeta[QStringLiteral("fileIndex")] = m_tunnelOutgoingIndex;
+  m_tunnelPhase = TunnelPhase::AwaitingReady;
+  m_outgoingTimeout.start(kTransferTimeout);
+  if (!m_coreProcess.sendFileChunk(
+          static_cast<uint8_t>(ChunkType::DataStart), QJsonDocument(startMeta).toJson(QJsonDocument::Compact),
+          m_outgoingTargetScreen
+      )) {
+    cancelOutgoing(tr("The destination is not available"));
+  }
+}
+
+void DragDropManager::sendNextTunnelChunk()
+{
+  const auto total = static_cast<qint64>(
+      m_outgoingManifest.at(m_tunnelOutgoingIndex).toObject().value(QStringLiteral("size")).toDouble()
+  );
+  QByteArray payload;
+  uint8_t mark;
+  if (m_tunnelOutgoingOffset == total) {
+    payload = QJsonDocument(
+                  QJsonObject{
+                      {QStringLiteral("transferId"), m_outgoingId}, {QStringLiteral("fileIndex"), m_tunnelOutgoingIndex}
+                  }
+    ).toJson(QJsonDocument::Compact);
+    mark = static_cast<uint8_t>(ChunkType::DataEnd);
+    m_tunnelPhase = TunnelPhase::AwaitingComplete;
+  } else {
+    const auto data = m_tunnelOutgoingFile->read(qMin(kChunkSize, total - m_tunnelOutgoingOffset));
+    if (data.isEmpty()) {
+      cancelOutgoing(tr("Could not read the entire file"));
+      return;
     }
+    payload = m_outgoingId.toUtf8();
+    const auto networkOffset = qToBigEndian(static_cast<quint64>(m_tunnelOutgoingOffset));
+    payload.append(reinterpret_cast<const char *>(&networkOffset), sizeof(networkOffset));
+    payload.append(data);
+    m_tunnelOutgoingOffset += data.size();
+    mark = static_cast<uint8_t>(ChunkType::DataChunk);
+    m_tunnelPhase = TunnelPhase::AwaitingChunk;
+  }
+  m_outgoingTimeout.start(kTransferTimeout);
+  if (!m_coreProcess.sendFileChunk(mark, payload, m_outgoingTargetScreen)) {
+    cancelOutgoing(tr("The destination is not available"));
+    return;
+  }
+  Q_EMIT transferProgressUpdated(
+      QFileInfo(m_tunnelOutgoingPaths.at(m_tunnelOutgoingIndex)).fileName(),
+      transferProgressPercent(m_tunnelOutgoingOffset, total)
+  );
+}
 
-    const QFileInfo fi(filePath);
-    QJsonObject startMeta;
-    startMeta[QStringLiteral("fileName")] = fi.fileName();
-    startMeta[QStringLiteral("size")] = fi.size();
-    startMeta[QStringLiteral("dropX")] = dropPos.x();
-    startMeta[QStringLiteral("dropY")] = dropPos.y();
+bool DragDropManager::acknowledgeTunnel(const QString &action)
+{
+  return sendDragMessage(
+      {{QStringLiteral("action"), action},
+       {QStringLiteral("transferId"), m_incomingId},
+       {QStringLiteral("fileIndex"), m_tunnelIncomingIndex},
+       {QStringLiteral("receivedBytes"), m_tunnelIncomingReceivedBytes}},
+      m_incomingSourceScreen
+  );
+}
 
-    m_coreProcess.sendFileChunk(
-        static_cast<uint8_t>(kDataStart), QJsonDocument(startMeta).toJson(QJsonDocument::Compact)
+void DragDropManager::onFileChunkReceived(const QString &sourceScreen, uint8_t mark, const QByteArray &chunk)
+{
+  if (!m_incomingAccepted || m_incomingId.isEmpty() || sourceScreen != m_incomingSourceScreen || !canTransfer()) {
+    return;
+  }
+  if (mark == static_cast<uint8_t>(ChunkType::DataStart)) {
+    const auto doc = QJsonDocument::fromJson(chunk);
+    const auto meta = doc.object();
+    if (chunk.size() > 2048 || !doc.isObject() || meta.value(QStringLiteral("transferId")).toString() != m_incomingId ||
+        meta.value(QStringLiteral("fileIndex")).toInt(-1) != m_tunnelIncomingIndex || m_tunnelIncomingFile ||
+        m_tunnelIncomingIndex >= m_incomingManifest.size()) {
+      cancelIncoming(tr("Invalid file transfer sequence"));
+      return;
+    }
+    const auto expected = m_incomingManifest.at(m_tunnelIncomingIndex).toObject();
+    if (meta.value(QStringLiteral("fileName")) != expected.value(QStringLiteral("fileName")) ||
+        meta.value(QStringLiteral("size")) != expected.value(QStringLiteral("size"))) {
+      cancelIncoming(tr("The file does not match the accepted offer"));
+      return;
+    }
+    m_localSend->clearIncomingAuthorization(m_incomingId);
+    m_tunnelIncomingFile = std::make_unique<QTemporaryFile>(
+        QDir(m_localSend->downloadDirectory()).filePath(QStringLiteral(".flowplus-XXXXXX.part"))
     );
-
-    qint64 sent = 0;
-    const qint64 total = fi.size();
-    while (!file.atEnd()) {
-      const QByteArray chunk = file.read(kChunkSize);
-      if (chunk.isEmpty()) {
-        break;
-      }
-      m_coreProcess.sendFileChunk(static_cast<uint8_t>(kDataChunk), chunk);
-      sent += chunk.size();
-      const int pct = total > 0 ? static_cast<int>((sent * 100) / total) : 100;
-      Q_EMIT transferProgressUpdated(fi.fileName(), pct);
+    if (!m_tunnelIncomingFile->open()) {
+      cancelIncoming(tr("Could not create the download file"));
+      return;
     }
-
-    m_coreProcess.sendFileChunk(static_cast<uint8_t>(kDataEnd), QByteArray());
-    file.close();
-  }
-
-  Q_EMIT statusMessage(tr("Trasferimento file completato tramite tunnel FlowPlus"));
-}
-
-void DragDropManager::onFileChunkReceived(uint8_t mark, const QByteArray &chunk)
-{
-  if (mark == static_cast<uint8_t>(kDataStart)) {
-    if (m_tunnelIncomingFile) {
-      m_tunnelIncomingFile->close();
-      delete m_tunnelIncomingFile;
-      m_tunnelIncomingFile = nullptr;
-    }
-
-    const QJsonDocument doc = QJsonDocument::fromJson(chunk);
-    const QJsonObject meta = doc.object();
-    m_tunnelIncomingFileName =
-        QFileInfo(meta.value(QStringLiteral("fileName")).toString(QStringLiteral("received_file"))).fileName();
-    m_tunnelIncomingTotalBytes = static_cast<qint64>(meta.value(QStringLiteral("size")).toDouble(0));
     m_tunnelIncomingReceivedBytes = 0;
-    m_tunnelIncomingDropPos =
-        QPoint(meta.value(QStringLiteral("dropX")).toInt(-1), meta.value(QStringLiteral("dropY")).toInt(-1));
-
-    const QString dir = m_localSend->downloadDirectory();
-    QDir().mkpath(dir);
-    m_tunnelIncomingFilePath = QDir(dir).filePath(m_tunnelIncomingFileName);
-
-    m_tunnelIncomingFile = new QFile(m_tunnelIncomingFilePath);
-    if (!m_tunnelIncomingFile->open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-      delete m_tunnelIncomingFile;
-      m_tunnelIncomingFile = nullptr;
-      return;
+    m_incomingTimeout.start(kTransferTimeout);
+    m_overlay->showTransferring(expected.value(QStringLiteral("fileName")).toString(), 0);
+    if (!acknowledgeTunnel(QStringLiteral("tunnelReady"))) {
+      cancelIncoming(tr("The sender is not available"), false);
     }
-
-    m_overlay->showTransferring(m_tunnelIncomingFileName, 0);
     return;
   }
-
-  if (mark == static_cast<uint8_t>(kDataChunk)) {
-    if (!m_tunnelIncomingFile) {
-      return;
-    }
-    m_tunnelIncomingFile->write(chunk);
-    m_tunnelIncomingReceivedBytes += chunk.size();
-    const int pct = m_tunnelIncomingTotalBytes > 0
-                        ? static_cast<int>((m_tunnelIncomingReceivedBytes * 100) / m_tunnelIncomingTotalBytes)
-                        : 50;
-    m_overlay->showTransferring(m_tunnelIncomingFileName, pct);
-    Q_EMIT transferProgressUpdated(m_tunnelIncomingFileName, pct);
+  if (!m_tunnelIncomingFile) {
     return;
   }
-
-  if (mark == static_cast<uint8_t>(kDataEnd)) {
-    if (!m_tunnelIncomingFile) {
+  const auto expected = m_incomingManifest.at(m_tunnelIncomingIndex).toObject();
+  const auto total = static_cast<qint64>(expected.value(QStringLiteral("size")).toDouble());
+  if (mark == static_cast<uint8_t>(ChunkType::DataChunk)) {
+    if (chunk.size() <= kChunkHeaderSize || chunk.size() > kChunkHeaderSize + kChunkSize ||
+        chunk.left(kUuidLength) != m_incomingId.toUtf8() ||
+        qFromBigEndian<quint64>(reinterpret_cast<const uchar *>(chunk.constData() + kUuidLength)) !=
+            static_cast<quint64>(m_tunnelIncomingReceivedBytes) ||
+        chunk.size() - kChunkHeaderSize > total - m_tunnelIncomingReceivedBytes) {
+      cancelIncoming(tr("Invalid file data or size"));
       return;
     }
-    m_tunnelIncomingFile->flush();
-    m_tunnelIncomingFile->close();
-    delete m_tunnelIncomingFile;
-    m_tunnelIncomingFile = nullptr;
-
-    handleCompletedFiles({m_tunnelIncomingFilePath}, m_tunnelIncomingDropPos);
+    const auto dataSize = chunk.size() - kChunkHeaderSize;
+    if (m_tunnelIncomingFile->write(chunk.constData() + kChunkHeaderSize, dataSize) != dataSize) {
+      cancelIncoming(tr("Could not write the download file"));
+      return;
+    }
+    m_tunnelIncomingReceivedBytes += dataSize;
+    m_incomingTimeout.start(kTransferTimeout);
+    const auto percent = transferProgressPercent(m_tunnelIncomingReceivedBytes, total);
+    m_overlay->showTransferring(expected.value(QStringLiteral("fileName")).toString(), percent);
+    Q_EMIT transferProgressUpdated(expected.value(QStringLiteral("fileName")).toString(), percent);
+    if (!acknowledgeTunnel(QStringLiteral("tunnelAck"))) {
+      cancelIncoming(tr("The sender is not available"), false);
+    }
+    return;
+  }
+  if (mark != static_cast<uint8_t>(ChunkType::DataEnd)) {
+    cancelIncoming(tr("Unknown file transfer message"));
+    return;
+  }
+  const auto end = QJsonDocument::fromJson(chunk).object();
+  if (chunk.size() > 2048 || end.value(QStringLiteral("transferId")).toString() != m_incomingId ||
+      end.value(QStringLiteral("fileIndex")).toInt(-1) != m_tunnelIncomingIndex ||
+      m_tunnelIncomingReceivedBytes != total || !m_tunnelIncomingFile->flush()) {
+    cancelIncoming(tr("The received file is incomplete"));
+    return;
+  }
+  m_tunnelIncomingFile->close();
+  m_tunnelIncomingFiles.push_back(std::move(m_tunnelIncomingFile));
+  if (m_tunnelIncomingIndex + 1 == m_incomingManifest.size()) {
+    QStringList paths;
+    if (!publishTunnelFiles(paths)) {
+      cancelIncoming(tr("Could not save the received files"));
+      return;
+    }
+    const auto id = m_incomingId;
+    const auto pos = m_incomingDropPos;
+    const bool acknowledged = acknowledgeTunnel(QStringLiteral("tunnelComplete"));
+    handleCompletedFiles(paths, pos, id);
+    if (!acknowledged) {
+      Q_EMIT statusMessage(tr("Files saved; the sender disconnected before receiving confirmation"));
+    }
+  } else {
+    if (!acknowledgeTunnel(QStringLiteral("tunnelComplete"))) {
+      cancelIncoming(tr("The sender is not available"), false);
+      return;
+    }
+    ++m_tunnelIncomingIndex;
+    m_tunnelIncomingReceivedBytes = 0;
+    m_incomingTimeout.start(kTransferTimeout);
   }
 }
 
-void DragDropManager::handleCompletedFiles(const QStringList &savedPaths, const QPoint &dropPos)
+bool DragDropManager::publishTunnelFiles(QStringList &savedPaths)
 {
-  if (savedPaths.isEmpty()) {
+  for (size_t index = 0; index < m_tunnelIncomingFiles.size(); ++index) {
+    const auto name =
+        m_incomingManifest.at(static_cast<qsizetype>(index)).toObject().value(QStringLiteral("fileName")).toString();
+    const auto destination = uniqueTransferDestination(m_localSend->downloadDirectory(), name);
+    if (destination.isEmpty() || !m_tunnelIncomingFiles[index]->rename(destination)) {
+      // Already-renamed files still auto-remove until the entire batch commits.
+      return false;
+    }
+    savedPaths.append(destination);
+  }
+  for (auto &file : m_tunnelIncomingFiles) {
+    file->setAutoRemove(false);
+  }
+  m_tunnelIncomingFiles.clear();
+  return true;
+}
+
+void DragDropManager::handleCompletedFiles(const QStringList &savedPaths, const QPoint &, const QString &transferId)
+{
+  if (savedPaths.isEmpty() || transferId != m_incomingId || !m_incomingAccepted) {
     return;
   }
-
-  const QPoint effectiveDropPos = (dropPos.x() >= 0 && dropPos.y() >= 0) ? dropPos : QCursor::pos();
-  injectNativeDrop(savedPaths, effectiveDropPos);
-
-  const QString firstName = QFileInfo(savedPaths.first()).fileName();
-  m_overlay->showCompleted(tr("✓ File ricevuto: %1").arg(firstName));
-  Q_EMIT statusMessage(tr("File ricevuto e rilasciato: %1").arg(savedPaths.join(QStringLiteral(", "))));
+  const bool nativeDrop = m_incomingNativeDrop;
+  const bool delivered = nativeDrop && injectNativeDrop(savedPaths);
+  cancelIncoming({}, false);
+  m_overlay->showCompleted(tr("Files received: %1").arg(savedPaths.size()));
+  Q_EMIT statusMessage(
+      delivered    ? tr("Files received; native drop requested")
+      : nativeDrop ? tr("Files saved in Downloads/FlowPlus and available to paste")
+                   : tr("Files saved in Downloads/FlowPlus")
+  );
   Q_EMIT filesReceived(savedPaths);
 }
 
-void DragDropManager::injectNativeDrop(const QStringList &savedPaths, const QPoint &dropPos)
+void DragDropManager::captureNativeDropTarget()
 {
-  // 1. Place the received file(s) as native file URLs on the system clipboard
-  auto *mimeData = new QMimeData();
+#if defined(Q_OS_WIN)
+  POINT point;
+  if (!GetCursorPos(&point)) {
+    return;
+  }
+  const auto target = WindowFromPoint(point);
+  if (!target) {
+    return;
+  }
+  wchar_t className[256] = {};
+  GetClassNameW(target, className, 256);
+  DWORD process = 0;
+  GetWindowThreadProcessId(target, &process);
+  m_nativeDropTarget = reinterpret_cast<quintptr>(target);
+  m_nativeDropProcess = process;
+  m_nativeDropClass = QString::fromWCharArray(className);
+  m_nativeDropPoint = QPoint(point.x, point.y);
+#endif
+}
+
+bool DragDropManager::injectNativeDrop(const QStringList &savedPaths)
+{
+  auto *mime = new QMimeData;
   QList<QUrl> urls;
-  for (const QString &path : savedPaths) {
+  for (const auto &path : savedPaths) {
     urls.append(QUrl::fromLocalFile(path));
   }
-  mimeData->setUrls(urls);
-  QGuiApplication::clipboard()->setMimeData(mimeData);
+  mime->setUrls(urls);
+  QGuiApplication::clipboard()->setMimeData(mime);
 
 #if defined(Q_OS_WIN)
-  // 2. Inspect target window under the drop coordinates on Windows
-  POINT pt{dropPos.x(), dropPos.y()};
-  HWND hwndTarget = WindowFromPoint(pt);
-  if (hwndTarget) {
-    wchar_t className[128] = {0};
-    GetClassNameW(hwndTarget, className, 127);
-    const QString wndClass = QString::fromWCharArray(className);
-
-    // If dropped onto the Windows Desktop, also copy the file directly to Desktop
-    if (wndClass == QStringLiteral("SysListView32") || wndClass == QStringLiteral("SHELLDLL_DefView") ||
-        wndClass == QStringLiteral("WorkerW") || wndClass == QStringLiteral("Progman")) {
-      const QString desktopDir = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
-      if (!desktopDir.isEmpty()) {
-        for (const QString &srcPath : savedPaths) {
-          const QString dstPath = QDir(desktopDir).filePath(QFileInfo(srcPath).fileName());
-          if (QFileInfo::exists(dstPath)) {
-            QFile::remove(dstPath);
-          }
-          QFile::copy(srcPath, dstPath);
-        }
-      }
-    }
-
-    // Build and post native WM_DROPFILES structure to the target window
-    QByteArray widePathsBuffer;
-    for (const QString &path : savedPaths) {
-      const QString nativePath = QDir::toNativeSeparators(path);
-      widePathsBuffer.append(
-          reinterpret_cast<const char *>(nativePath.utf16()), (nativePath.size() + 1) * static_cast<int>(sizeof(wchar_t))
-      );
-    }
-    const wchar_t nullTerm = 0;
-    widePathsBuffer.append(reinterpret_cast<const char *>(&nullTerm), sizeof(wchar_t));
-
-    const SIZE_T totalSize = sizeof(DROPFILES) + static_cast<SIZE_T>(widePathsBuffer.size());
-    HGLOBAL hGlobal = GlobalAlloc(GHND | GMEM_SHARE, totalSize);
-    if (hGlobal) {
-      auto *dropFiles = static_cast<DROPFILES *>(GlobalLock(hGlobal));
-      if (dropFiles) {
-        dropFiles->pFiles = sizeof(DROPFILES);
-        dropFiles->pt = pt;
-        ScreenToClient(hwndTarget, &dropFiles->pt);
-        dropFiles->fNC = FALSE;
-        dropFiles->fWide = TRUE;
-        memcpy(reinterpret_cast<char *>(dropFiles) + sizeof(DROPFILES), widePathsBuffer.constData(), widePathsBuffer.size());
-        GlobalUnlock(hGlobal);
-        if (!PostMessageW(hwndTarget, WM_DROPFILES, reinterpret_cast<WPARAM>(hGlobal), 0)) {
-          GlobalFree(hGlobal);
-        }
-      } else {
-        GlobalFree(hGlobal);
-      }
+  auto target = reinterpret_cast<HWND>(m_nativeDropTarget);
+  DWORD process = 0;
+  wchar_t className[256] = {};
+  if (!target || !IsWindow(target) || !IsWindowVisible(target)) {
+    return false;
+  }
+  GetWindowThreadProcessId(target, &process);
+  GetClassNameW(target, className, 256);
+  if (process != m_nativeDropProcess || QString::fromWCharArray(className) != m_nativeDropClass) {
+    return false;
+  }
+  DWORD shellProcess = 0;
+  GetWindowThreadProcessId(GetShellWindow(), &shellProcess);
+  bool isDesktop = false;
+  for (auto ancestor = target; ancestor; ancestor = GetParent(ancestor)) {
+    GetClassNameW(ancestor, className, 256);
+    const auto name = QString::fromWCharArray(className);
+    isDesktop = process == shellProcess && (name == QStringLiteral("SHELLDLL_DefView") ||
+                                            name == QStringLiteral("Progman") || name == QStringLiteral("WorkerW"));
+    if (isDesktop) {
+      break;
     }
   }
+  if (isDesktop) {
+    const auto desktop = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
+    if (desktop.isEmpty()) {
+      return false;
+    }
+    QStringList copied;
+    for (const auto &source : savedPaths) {
+      const auto destination = uniqueTransferDestination(desktop, QFileInfo(source).fileName());
+      if (destination.isEmpty() || !QFile::copy(source, destination)) {
+        for (const auto &path : copied) {
+          QFile::remove(path);
+        }
+        return false;
+      }
+      copied.append(destination);
+    }
+    return true;
+  }
+  // WM_DROPFILES is a legacy opt-in API. Modern OLE targets may not support it.
+  while (target && !(GetWindowLongPtrW(target, GWL_EXSTYLE) & WS_EX_ACCEPTFILES)) {
+    target = GetParent(target);
+  }
+  if (!target) {
+    return false;
+  }
+  QByteArray paths;
+  for (const auto &path : savedPaths) {
+    const auto native = QDir::toNativeSeparators(path);
+    paths.append(reinterpret_cast<const char *>(native.utf16()), (native.size() + 1) * sizeof(wchar_t));
+  }
+  paths.append(sizeof(wchar_t), '\0');
+  const auto memory = GlobalAlloc(GHND, sizeof(DROPFILES) + paths.size());
+  if (!memory) {
+    return false;
+  }
+  auto *drop = static_cast<DROPFILES *>(GlobalLock(memory));
+  if (!drop) {
+    GlobalFree(memory);
+    return false;
+  }
+  drop->pFiles = sizeof(DROPFILES);
+  drop->pt = POINT{m_nativeDropPoint.x(), m_nativeDropPoint.y()};
+  ScreenToClient(target, &drop->pt);
+  drop->fNC = FALSE;
+  drop->fWide = TRUE;
+  std::memcpy(reinterpret_cast<char *>(drop) + sizeof(DROPFILES), paths.constData(), paths.size());
+  GlobalUnlock(memory);
+  if (!PostMessageW(target, WM_DROPFILES, reinterpret_cast<WPARAM>(memory), 0)) {
+    GlobalFree(memory);
+    return false;
+  }
+  return true;
+#else
+  // Finder requires a native drag session; received URLs are available to paste.
+  return false;
 #endif
 }
 

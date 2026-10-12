@@ -32,8 +32,18 @@ AboutDialog::AboutDialog(QWidget *parent) : QDialog(parent), ui{std::make_unique
   ui->lblName->setText(kAppName);
   setWindowTitle(tr("About %1").arg(kAppName));
   ui->lblVersion->setText(kDisplayVersion);
-  ui->lblDescription->setText(kAppDescription);
+  ui->lblDescription->setText(QStringLiteral("%1\n%2").arg(
+      kAppDescription, tr("Based on Deskflow. Experimental file transfers use the LocalSend protocol.")
+  ));
+  ui->lblDescription->setWordWrap(true);
+  ui->linkContributors->setText(QStringLiteral(
+      "<a href=\"https://github.com/Kibra2025/FlowPlus/graphs/contributors\">FlowPlus contributors</a>"
+      " · <a href=\"https://github.com/deskflow/deskflow\">Deskflow</a>"
+      " · <a href=\"https://github.com/localsend/localsend\">LocalSend</a>"
+  ));
+  ui->linkContributors->setWordWrap(true);
   ui->lblCopyright->setText(kCopyright);
+  ui->lblCopyright->setWordWrap(true);
 
   // Use non-breaking space in each awesome dev name so names are not split across lines.
   QStringList devsNbsp;

@@ -8,6 +8,8 @@
 
 #include "IpcServer.h"
 
+#include <QElapsedTimer>
+#include <QMutex>
 #include <QObject>
 #include <QSet>
 #include <functional>
@@ -32,14 +34,15 @@ public:
   void clearStagedDragInfo();
 
 Q_SIGNALS:
-  void startDragRequested(const QString &payload);
-  void sendFileChunkRequested(const QString &payload);
-  void dropRequested(const QString &payload);
+  void startDragRequested(const QByteArray &payload);
+  void sendFileChunkRequested(uint8_t mark, const QByteArray &payload);
 
 private:
   void processCommand(QLocalSocket *clientSocket, const QString &command, const QStringList &parts) override;
 
   QByteArray m_stagedDragPayload;
+  mutable QMutex m_dragMutex;
+  QElapsedTimer m_dragAge;
 };
 
 } // namespace deskflow::core::ipc
