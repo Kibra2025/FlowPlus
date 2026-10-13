@@ -226,4 +226,5 @@ private:
   QLabel *m_lblTransferStatus = nullptr;
   QPushButton *m_btnSendFiles = nullptr;
   QPushButton *m_btnOpenDownloads = nullptr;
+  QString m_lastReceivedDirectory;
 };

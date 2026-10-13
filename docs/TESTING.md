@@ -18,7 +18,19 @@ The isolated suite covers routed binary payloads, malformed IPC, embedded networ
 length limits, filename/manifest rules, overlay behavior and actual LocalSend HTTP
 requests, including authorization, interruption, collisions and fallback policy.
 It does not run the full coordinator against two input backends. The
-`transfer-tests.yml` workflow runs this suite on Windows and macOS.
+`transfer-tests.yml` workflow runs this suite on Windows and macOS. It also runs
+the permission setup tests independently:
+
+```sh
+cmake -S src/unittests/startup -B build/startup -DCMAKE_BUILD_TYPE=Release
+cmake --build build/startup --config Release --parallel 4
+ctest --test-dir build/startup -C Release --output-on-failure
+```
+
+The transfer suite includes safe destination placement (collisions, unsupported
+paths, empty files, rollback and cancellation) and native drag revision tracking.
+macOS CI compiles the native Finder/pasteboard helpers; that does not prove a real
+Finder drag or Accessibility hit test succeeds.
 
 See [the local review record](VALIDATION.md) for checks performed on the current changes.
 
@@ -43,7 +55,9 @@ Use a real Windows computer and a real macOS computer with the same FlowPlus bui
 6. Repeat with multiple files, a zero-byte file, Unicode names, a file larger than 32 MiB, and an existing identical filename at the destination. Existing data must remain intact.
 7. Press Escape before release, including after waiting more than 30 seconds; then release the mouse and verify no transfer starts. Leave/re-enter the target screen, pass through a third screen, disconnect mid-transfer, and cancel an accepted transfer. Verify overlays disappear, no duplicate session starts, and partial data is not visible as a completed download.
 8. Exercise different display scaling, multiple monitors, negative monitor coordinates, fullscreen apps and macOS Spaces. Record the exact monitor layout when reporting a drag bug.
-9. Verify macOS download-folder delivery and clipboard URLs after gesture drops. Manual transfers must preserve the clipboard. On Windows verify desktop copies preserve existing files; separately test optional legacy `WM_DROPFILES` delivery. A successful download does not establish native Explorer/Finder drop support.
+9. Release over an open Finder/Explorer folder background, a real subfolder icon, the desktop, a virtual location and an unrelated app. Recognized folders should receive the files; unsupported/ambiguous targets must fall back to Downloads/FlowPlus with an explanatory status. Change the foreground window or navigate elsewhere during a large transfer: the captured destination must stay unchanged. Verify existing files, sender originals and the clipboard are preserved. After successful placement, unchanged temporary download copies should be removed; cleanup failures retain extra copies and are reported. Received files must open the last delivery folder. Exact icon coordinates and arbitrary application drops are not supported.
+10. On macOS, remove FlowPlus's Accessibility authorization and launch. The setup window must remain visible; decline the OS prompt, open settings from the dialog, enable access, and verify automatic continuation. Check explicit Quit and relaunch after replacing the app. Run `codesign --verify --deep --strict --verbose=2 /Applications/FlowPlus.app` on the newly packaged artifact; distinguish signature integrity from Developer ID/notarization.
+11. With the Mac as the controlling server, begin a fresh Finder drag, cross into Windows and release. Repeat after a canceled drag, an ordinary click, reconnection, and returning from the remote screen. Stale drag pasteboard contents must never resend old files. Repeat near the Dock, menu bar and in fullscreen/Spaces.
 
 ## VPN and tunnel checklist
 

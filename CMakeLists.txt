@@ -250,10 +250,6 @@ add_subdirectory(translations)
 
 add_subdirectory(src)
 
-if(BUILD_INSTALLER)
-    add_subdirectory(deploy)
-endif()
-
 install(
   FILES ${PROJECT_SOURCE_DIR}/LICENSE
   DESTINATION ${CMAKE_INSTALL_LICENSE_DIR}
@@ -278,3 +274,9 @@ install(
   FILES ${PROJECT_SOURCE_DIR}/docs/third-party/LocalSend-LICENSE.txt
   DESTINATION ${CMAKE_INSTALL_LICENSE_DIR}/docs/third-party
 )
+
+# Packaging may sign the installed macOS bundle. Register it after all bundle
+# resources so no later install step invalidates the signature.
+if(BUILD_INSTALLER)
+    add_subdirectory(deploy)
+endif()

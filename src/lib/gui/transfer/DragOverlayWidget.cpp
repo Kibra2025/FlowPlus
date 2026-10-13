@@ -45,7 +45,7 @@ DragOverlayWidget::DragOverlayWidget(QWidget *parent)
   m_titleLabel->setWordWrap(true);
   m_titleLabel->setTextFormat(Qt::PlainText);
 
-  m_subtitleLabel->setStyleSheet(QStringLiteral("color: #B8C4D8; font-size: 11px;"));
+  m_subtitleLabel->setStyleSheet(QStringLiteral("color: #BFC0C8; font-size: 11px;"));
   m_subtitleLabel->setWordWrap(true);
   m_subtitleLabel->setTextFormat(Qt::PlainText);
 
@@ -55,7 +55,7 @@ DragOverlayWidget::DragOverlayWidget(QWidget *parent)
   m_progressBar->setFixedHeight(6);
   m_progressBar->setStyleSheet(QStringLiteral(
       "QProgressBar { background-color: rgba(255,255,255,0.18); border-radius: 3px; border: none; }"
-      "QProgressBar::chunk { background-color: #38BDF8; border-radius: 3px; }"
+      "QProgressBar::chunk { background-color: #B8A0FF; border-radius: 3px; }"
   ));
   m_progressBar->hide();
 
@@ -182,8 +182,8 @@ void DragOverlayWidget::paintEvent(QPaintEvent *event)
   QPainterPath path;
   path.addRoundedRect(rect().adjusted(1, 1, -1, -1), 10.0, 10.0);
 
-  painter.fillPath(path, QColor(15, 23, 42, 235));
-  painter.setPen(QPen(QColor(56, 189, 248, 180), 1.4));
+  painter.fillPath(path, QColor(25, 27, 31, 245));
+  painter.setPen(QPen(QColor(184, 160, 255, 200), 1.4));
   painter.drawPath(path);
 }
 

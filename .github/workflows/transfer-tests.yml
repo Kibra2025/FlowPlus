@@ -33,11 +33,19 @@ jobs:
         run: cmake --build build/transfer --config Release --parallel 4
       - name: Test
         run: ctest --test-dir build/transfer -C Release --output-on-failure
+      - name: Configure isolated startup tests
+        run: cmake -S src/unittests/startup -B build/startup -DCMAKE_BUILD_TYPE=Release
+      - name: Build startup tests
+        run: cmake --build build/startup --config Release --parallel 4
+      - name: Test first-launch permission flow
+        run: ctest --test-dir build/startup -C Release --output-on-failure
       - name: Upload test diagnostics
         if: failure()
         uses: actions/upload-artifact@v7
         with:
           name: transfer-test-logs-${{ matrix.os }}
-          path: build/transfer/Testing/Temporary/
+          path: |
+            build/transfer/Testing/Temporary/
+            build/startup/Testing/Temporary/
           if-no-files-found: ignore
           retention-days: 7

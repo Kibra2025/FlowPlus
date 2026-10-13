@@ -154,11 +154,27 @@ or release was changed locally; GitHub publication requires a new commit/run.
 See the [Git reference API](https://docs.github.com/en/rest/git/refs) and
 [release action](https://github.com/softprops/action-gh-release/tree/v3).
 
-Received files reliably target the download folder at the implementation level.
-Gesture receipts also publish clipboard URLs. Windows desktop copies and optional
-legacy `WM_DROPFILES` delivery require manual validation; macOS Finder and modern
-Explorer folder OLE drops remain outside the implemented native delivery path.
-Use the manual checklist before claiming production-ready cross-device dragging.
+## macOS launch report
+
+After installation on an M5 Mac, the user reported macOS rejecting FlowPlus as
+damaged. The ARM64 architecture and copying FlowPlus.app to Applications are
+correct. Review found macdeployqt signing the bundle before the root install
+rules added licenses/notices inside Contents/Resources, changing the signed
+resource set. Packaging registration now follows all those install rules, and
+macOS deployment fails if macdeployqt fails or the final `codesign --verify
+--deep --strict` check rejects the installed bundle. A fresh macOS CI package
+is required to confirm the fix; the user's exact Gatekeeper diagnostic has not
+yet been collected.
+
+The current pipeline uses ad-hoc signing (`-codesign=-`), not Apple Developer ID
+signing/notarization. A valid ad-hoc bundle does not establish Gatekeeper approval
+for Internet distribution. Production notarization remains outside the current
+pipeline and requires the developer's Apple signing identity and credentials.
+
+At the time of this launch report, gesture receipts published clipboard URLs and
+Windows used optional legacy `WM_DROPFILES`. The implementation below supersedes
+that delivery behavior. Use the manual checklist before claiming production-ready
+cross-device dragging.
 
 ## LocalSend reference cleanup
 
@@ -169,3 +185,56 @@ Recursive deletion was rejected by the automatic approval review with
 `build/reference-archive/localsend-main`, which Git ignores. It is not part of a
 GitHub source checkout or release source archive. No commit, push or release was
 created during this review.
+
+## macOS onboarding, reverse dragging and drop destinations (2026-10-13)
+
+The user confirmed that granting Accessibility access allowed the Mac app to open
+and that file transfer worked Windows to Mac. With the Mac's own input devices,
+ordinary screen traversal worked but a Finder file drag did not cross to Windows.
+
+The previous permission call returned immediately after requesting an asynchronous
+OS prompt. The new setup dialog remains visible, opens settings on demand, polls
+for permission and proceeds after approval. Its startup wrapper prevents closing
+the setup dialog from queuing an application quit before the main window opens.
+The macOS packaging changes above remain in place, with unnecessary network-based
+timestamping removed from ad-hoc signing. Developer ID/notarization is still not
+configured.
+
+The core intentionally locks screen traversal while a mouse button is held unless
+FlowPlus has staged an authorized file drag. macOS capture previously depended on
+4-pixel Qt edge windows. A native drag-pasteboard observer now stages fresh regular
+file URLs during a held gesture, while a verified transfer peer is connected.
+Revision tracking rejects old gestures after release, screen return or reconnect.
+This addresses a code-level cause consistent with the report; the actual Finder
+path has not been retested on physical devices in this environment.
+
+NativeDropTarget replaces clipboard mutation and WM_DROPFILES injection. It
+captures a filesystem directory at release using Explorer Shell/Accessibility or
+Finder Accessibility. Unsupported/ambiguous targets fall back to the download
+folder. Placement runs on a cancellable worker, preserves existing destination
+files and never removes sender originals. Temporary download copies are removed
+only after all destination copies are committed; changed or unremovable downloads
+are retained and reported. Exact icon positioning and drops inside arbitrary
+applications are not implemented.
+
+The GUI uses an original dark FlowPlus palette and workspace layout, taking visual
+direction from ArtCraft's dark surfaces and typography without copying its assets.
+Connection roles, settings and file actions are grouped separately; progress and
+the latest delivery directory are visible. Qt previews of both roles were rendered
+and inspected. These previews use demonstration data and do not claim a live
+cross-device connection.
+
+Local Windows checks: five transfer CTest suites passed, including native drag
+revision and placement regressions; the standalone startup suite passed, including
+the dialog-to-main-window lifetime regression. Modified coordinator, GUI and entry
+point C++ translation units compile with MinGW/Qt 6.7.3. The native Windows resolver
+also compiles and links in an isolated harness. REUSE, UTF-8, workflow YAML, UI XML,
+clang-format and diff checks pass. CI now includes the setup tests and compiles the
+native macOS source/destination helpers in the isolated transfer build.
+
+No new full macOS application/DMG build or two-device native drag/drop test was run
+on this Windows host. Run the updated manual checklist using fresh matching
+Windows/macOS builds. The previously requested strict LAN-only policy is not
+implemented by these changes: reachable remote core addresses and TLS fallback
+remain possible. Restricting all transports requires a separate shared on-link
+policy rather than only a private-IP check or a Windows firewall rule.

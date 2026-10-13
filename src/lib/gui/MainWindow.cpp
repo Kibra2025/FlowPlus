@@ -52,6 +52,7 @@
 #include <QRegularExpressionValidator>
 #include <QScreen>
 #include <QScrollBar>
+#include <QStyle>
 
 #include <memory>
 
@@ -196,9 +197,6 @@ void MainWindow::restoreWindow()
     QRect screenGeometry = QGuiApplication::primaryScreen()->geometry();
     move(screenGeometry.center() - rect().center());
   }
-
-  if (!Settings::value(Settings::Gui::LogExpanded).toBool())
-    setFixedSize(size());
 }
 
 void MainWindow::setupControls()
@@ -230,12 +228,12 @@ void MainWindow::setupControls()
   if (deskflow::platform::isMac()) {
     ui->rbModeServer->setAttribute(Qt::WA_MacShowFocusRect, false);
     ui->rbModeClient->setAttribute(Qt::WA_MacShowFocusRect, false);
-    ui->btnSaveServerConfig->setFixedWidth(ui->btnSaveServerConfig->height());
   } else {
     ui->btnSaveServerConfig->setIconSize(QSize(22, 22));
   }
   setupFileTransferBar();
   setStatusBar(m_statusBar);
+  connect(ui->btnPreferences, &QPushButton::clicked, m_actionSettings, &QAction::trigger);
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -330,12 +328,10 @@ void MainWindow::toggleLogVisible(bool visible)
     return;
   }
 
-  setFixedSize(16777215, 16777215);
   Settings::setValue(Settings::Gui::LogExpanded, visible);
   if (visible) {
     if (m_logDock->isFloating()) {
       adjustSize();
-      setFixedSize(size());
     } else {
       QTimer::singleShot(15, this, [&] { resize(m_expandedSize); });
     }
@@ -347,7 +343,6 @@ void MainWindow::toggleLogVisible(bool visible)
     if (!m_logDock->isFloating()) {
       adjustSize();
     }
-    setFixedSize(size());
   }
   Settings::setValue(Settings::Gui::WindowGeometry, geometry());
 }
@@ -592,10 +587,8 @@ void MainWindow::updateModeControlLabels()
 
   if (isStarted) {
     ui->btnToggleCore->setText(stopText);
-    ui->btnToggleCore->setIcon(stopIcon);
   } else {
     ui->btnToggleCore->setText(startText);
-    ui->btnToggleCore->setIcon(startIcon);
   }
 }
 
@@ -949,6 +942,16 @@ void MainWindow::updateStatus()
     ui->btnEditName->setVisible(process == Stopped);
   }
   m_statusBar->setStatus(connection, process, isServer);
+  const bool connected = process == Started && connection == ConnectionState::Connected;
+  ui->connectionBadge->setText(
+      connected                                        ? tr("Connected")
+      : process == Started                             ? tr("Waiting for connection")
+      : process == Starting || process == RetryPending ? tr("Connecting…")
+                                                       : tr("Not connected")
+  );
+  ui->connectionBadge->setProperty("connected", connected);
+  ui->connectionBadge->style()->unpolish(ui->connectionBadge);
+  ui->connectionBadge->style()->polish(ui->connectionBadge);
 }
 
 void MainWindow::coreProcessStateChanged(ProcessState state)
@@ -1074,6 +1077,10 @@ void MainWindow::updateText()
   m_actionStopCore->setText(tr("S&top"));
   //: %1 will be the replaced with the appname
   m_actionAbout->setText(tr("About %1...").arg(kAppName));
+  if (m_btnSendFiles) {
+    m_btnSendFiles->setText(tr("Send files…"));
+    m_btnOpenDownloads->setText(tr("Received files"));
+  }
 
   //: start / restart core shortcut
   m_actionStartCore->setShortcut(QKeySequence(tr("Ctrl+S")));
@@ -1213,6 +1220,12 @@ void MainWindow::serverClientsChanged(const QStringList &clients)
   if (m_coreProcess.mode() != CoreMode::Server || !m_coreProcess.isStarted())
     return;
   m_statusBar->setServerClients(clients);
+  ui->connectionBadge->setText(
+      clients.isEmpty() ? tr("Waiting for connection") : tr("%n device(s) connected", "", clients.size())
+  );
+  ui->connectionBadge->setProperty("connected", !clients.isEmpty());
+  ui->connectionBadge->style()->unpolish(ui->connectionBadge);
+  ui->connectionBadge->style()->polish(ui->connectionBadge);
 }
 
 void MainWindow::daemonIpcClientConnectionFailed()
@@ -1307,30 +1320,10 @@ bool MainWindow::canRunCore() const
 
 void MainWindow::setupFileTransferBar()
 {
-  if (!ui->topLevelWidget || !ui->topLevelWidget->layout()) {
-    return;
-  }
-
-  auto *barWidget = new QWidget(ui->topLevelWidget);
-  auto *barLayout = new QHBoxLayout(barWidget);
-  barLayout->setContentsMargins(6, 4, 6, 4);
-  barLayout->setSpacing(8);
-
-  m_lblTransferStatus = new QLabel(barWidget);
-  m_lblTransferStatus->setTextFormat(Qt::PlainText);
-  m_lblTransferStatus->setWordWrap(true);
-
-  m_btnSendFiles = new QPushButton(tr("Send files..."), barWidget);
-  m_btnSendFiles->setIcon(QIcon::fromTheme(QStringLiteral("document-open")));
-
-  m_btnOpenDownloads = new QPushButton(tr("Received files"), barWidget);
+  m_lblTransferStatus = ui->transferStatus;
+  m_btnSendFiles = ui->sendFilesButton;
+  m_btnOpenDownloads = ui->receivedFilesButton;
   m_btnOpenDownloads->setIcon(QIcon::fromTheme(QStringLiteral("folder-open")));
-
-  barLayout->addWidget(m_lblTransferStatus, 1);
-  barLayout->addWidget(m_btnSendFiles);
-  barLayout->addWidget(m_btnOpenDownloads);
-
-  ui->topLevelWidget->layout()->addWidget(barWidget);
   m_dragDropManager->setKnownPeerAddress(Settings::value(Settings::Client::RemoteHost).toString());
   updateFileTransferAvailability();
 
@@ -1355,6 +1348,16 @@ void MainWindow::setupFileTransferBar()
     }
     handleLogLine(QStringLiteral("[FlowPlus Transfer] %1").arg(msg));
   });
+  connect(
+      m_dragDropManager, &transfer::DragDropManager::transferProgressUpdated, this,
+      [this, previousName = QString(), previousPercent = -1](const QString &name, int percent) mutable {
+        if (name != previousName || percent != previousPercent) {
+          previousName = name;
+          previousPercent = percent;
+          m_lblTransferStatus->setText(tr("Transferring %1 · %2%").arg(name).arg(percent));
+        }
+      }
+  );
 
   connect(m_btnSendFiles, &QPushButton::clicked, this, [this]() {
     const QStringList files = QFileDialog::getOpenFileNames(this, tr("Select files to send with FlowPlus"));
@@ -1364,9 +1367,17 @@ void MainWindow::setupFileTransferBar()
   });
 
   connect(m_btnOpenDownloads, &QPushButton::clicked, this, [this]() {
-    const QString dir = m_dragDropManager->localSendService()->downloadDirectory();
+    const QString dir = m_lastReceivedDirectory.isEmpty() || !QFileInfo(m_lastReceivedDirectory).isDir()
+                            ? m_dragDropManager->localSendService()->downloadDirectory()
+                            : m_lastReceivedDirectory;
     QDir().mkpath(dir);
     QDesktopServices::openUrl(QUrl::fromLocalFile(dir));
+  });
+  connect(m_dragDropManager, &transfer::DragDropManager::filesReceived, this, [this](const QStringList &paths) {
+    if (!paths.isEmpty()) {
+      m_lastReceivedDirectory = QFileInfo(paths.first()).absolutePath();
+      m_btnOpenDownloads->setToolTip(QDir::toNativeSeparators(m_lastReceivedDirectory));
+    }
   });
 }
 

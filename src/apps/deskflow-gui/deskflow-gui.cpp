@@ -24,8 +24,10 @@
 #include <QSharedMemory>
 
 #if defined(Q_OS_MACOS)
+#include "AccessibilitySetupDialog.h"
 #include <Carbon/Carbon.h>
-#include <cstdlib>
+#include <QDesktopServices>
+#include <QUrl>
 #endif
 
 #if defined(Q_OS_UNIX) && defined(QT_DEBUG)
@@ -62,6 +64,7 @@ int main(int argc, char *argv[])
   QGuiApplication::setDesktopFileName(kRevFqdnName);
 
   QApplication app(argc, argv);
+  applyFlowPlusTheme();
 
   // Ensure the I18N object is made before strings
   QTextStream(stdout) << "initial language: " << I18N::currentLanguage() << '\n';
@@ -118,10 +121,6 @@ int main(int argc, char *argv[])
     return s_exitDuplicate;
   }
 
-  if (!deskflow::platform::isMac() && qEnvironmentVariable("XDG_CURRENT_DESKTOP") != QLatin1String("KDE")) {
-    QApplication::setStyle("fusion");
-  }
-
   // Sets the fallback icon path and fallback theme
   updateIconTheme();
 
@@ -140,7 +139,8 @@ int main(int argc, char *argv[])
   }
 
   if (!checkMacAssistiveDevices()) {
-    return 1;
+    // The setup dialog remains open until access is granted or the user quits.
+    return s_exitSuccess;
   }
 #endif
 
@@ -158,22 +158,25 @@ int main(int argc, char *argv[])
 #if defined(Q_OS_MACOS)
 bool checkMacAssistiveDevices()
 {
-  // new in mavericks, applications are trusted individually
-  // with use of the accessibility api. this call will show a
-  // prompt which can show the security/privacy/accessibility
-  // tab, with a list of allowed applications. deskflow should
-  // show up there automatically, but will be unchecked.
-
   if (AXIsProcessTrusted()) {
     return true;
   }
 
-  const void *keys[] = {kAXTrustedCheckOptionPrompt};
-  const void *trueValue[] = {kCFBooleanTrue};
-  CFDictionaryRef options = CFDictionaryCreate(nullptr, keys, trueValue, 1, nullptr, nullptr);
-
-  bool result = AXIsProcessTrustedWithOptions(options);
-  CFRelease(options);
-  return result;
+  AccessibilitySetupDialog setup(
+      kAppName, [] { return AXIsProcessTrusted(); },
+      [] {
+        const void *keys[] = {kAXTrustedCheckOptionPrompt};
+        const void *values[] = {kCFBooleanTrue};
+        CFDictionaryRef options = CFDictionaryCreate(nullptr, keys, values, 1, nullptr, nullptr);
+        AXIsProcessTrustedWithOptions(options);
+        CFRelease(options);
+      },
+      [] {
+        return QDesktopServices::openUrl(
+            QUrl(QStringLiteral("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"))
+        );
+      }
+  );
+  return setup.execForStartup() == QDialog::Accepted;
 }
 #endif

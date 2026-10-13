@@ -9,10 +9,18 @@ set(OSX_BUNDLE ${BUILD_OSX_BUNDLE})
 set(OS_STRING "macos-${BUILD_ARCHITECTURE}")
 
 if (OSX_BUNDLE)
+  # Ad-hoc development signing needs no timestamp server. Enable timestamping
+  # only alongside a Developer ID identity when adding notarized releases.
   install(CODE "execute_process(COMMAND
     ${DEPLOYQT}
     \"\${CMAKE_INSTALL_PREFIX}/${CMAKE_PROJECT_PROPER_NAME}.app\"
-    -timestamp -codesign=-
+    -codesign=-
+    COMMAND_ERROR_IS_FATAL ANY
+  )
+  execute_process(COMMAND
+    /usr/bin/codesign --verify --deep --strict --verbose=2
+    \"\${CMAKE_INSTALL_PREFIX}/${CMAKE_PROJECT_PROPER_NAME}.app\"
+    COMMAND_ERROR_IS_FATAL ANY
   )")
   set(CPACK_PACKAGE_ICON "${MY_DIR}/flowplus-dmg-volume.icns")
   set(CPACK_DMG_BACKGROUND_IMAGE "${MY_DIR}/flowplus-dmg-background.tiff")

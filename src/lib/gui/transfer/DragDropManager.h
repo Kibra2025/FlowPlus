@@ -8,6 +8,10 @@
 
 #include "DragOverlayWidget.h"
 #include "LocalSendService.h"
+#include "NativeDropTarget.h"
+#if defined(Q_OS_MACOS)
+#include "DragSourceState.h"
+#endif
 
 #include <QFile>
 #include <QJsonArray>
@@ -22,6 +26,7 @@
 #include <vector>
 
 class QMessageBox;
+class QThread;
 
 namespace deskflow::gui {
 class CoreProcess;
@@ -111,8 +116,6 @@ private:
   bool acknowledgeTunnel(const QString &action);
   bool publishTunnelFiles(QStringList &savedPaths);
   void handleCompletedFiles(const QStringList &savedPaths, const QPoint &dropPos, const QString &transferId);
-  void captureNativeDropTarget();
-  bool injectNativeDrop(const QStringList &savedPaths);
   QString resolveLocalIpAddress(const QString &peerAddress = QString()) const;
   static QString formatFileSize(qint64 bytes);
 
@@ -120,6 +123,10 @@ private:
   LocalSendService *m_localSend;
   DragOverlayWidget *m_overlay;
   QList<EdgeDropSensor *> m_edgeSensors;
+#if defined(Q_OS_MACOS)
+  QTimer m_nativeDragTimer;
+  DragSourceState m_nativeDragState;
+#endif
   QStringList m_connectedScreens;
   QString m_lastRemoteScreen;
   QString m_knownPeerIp;
@@ -155,11 +162,8 @@ private:
   int m_tunnelIncomingIndex = 0;
   qint64 m_tunnelIncomingReceivedBytes = 0;
 
-  // Capture the real window at release, before a potentially long download.
-  quintptr m_nativeDropTarget = 0;
-  quint32 m_nativeDropProcess = 0;
-  QString m_nativeDropClass;
-  QPoint m_nativeDropPoint;
+  NativeDropTarget m_nativeDropTarget;
+  QThread *m_placementThread = nullptr;
 };
 
 } // namespace deskflow::gui::transfer

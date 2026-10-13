@@ -5,6 +5,7 @@
  */
 
 #include "gui/transfer/DragOverlayWidget.h"
+#include "gui/transfer/DragSourceState.h"
 #include "gui/transfer/TransferUtils.h"
 
 #include <QDir>
@@ -35,6 +36,9 @@ private Q_SLOTS:
   void requireCanonicalTransferIds();
   void doNotDropWhenCursorPauses();
   void overlayTreatsNamesAsPlainText();
+  void nativeDragRequiresFreshHeldGesture();
+  void nativeDragIgnoresInactiveScreen();
+  void nativeDragResetsWhenDisconnected();
 };
 
 void DragDropManagerTests::rejectUnsafeManifest_data()
@@ -158,6 +162,40 @@ void DragDropManagerTests::overlayTreatsNamesAsPlainText()
   overlay.showTransferring(QStringLiteral("report.txt"), 150);
   QCOMPARE(overlay.state(), DragOverlayWidget::State::Transferring);
   overlay.hideOverlay();
+}
+
+void DragDropManagerTests::nativeDragRequiresFreshHeldGesture()
+{
+  DragSourceState state;
+  QVERIFY(!state.observe(10, false, true)); // Initial pasteboard is stale.
+  QVERIFY(!state.observe(10, true, true));  // Ordinary click.
+  QVERIFY(state.observe(11, true, true));   // Finder writes a new drag.
+  QVERIFY(!state.observe(11, true, true));  // Same held gesture is sent once.
+  QVERIFY(!state.observe(11, false, true));
+  QVERIFY(!state.observe(11, true, true)); // Clicking after release is not a drag.
+  QVERIFY(!state.observe(12, false, true));
+  QVERIFY(!state.observe(12, true, true)); // Late update after release stays stale.
+  QVERIFY(state.observe(13, true, true));
+}
+
+void DragDropManagerTests::nativeDragIgnoresInactiveScreen()
+{
+  DragSourceState state;
+  QVERIFY(!state.observe(10, false, true));
+  QVERIFY(!state.observe(11, true, false));
+  QVERIFY(!state.observe(11, true, true)); // Returning cursor cannot replay it.
+  QVERIFY(state.observe(12, true, true));
+}
+
+void DragDropManagerTests::nativeDragResetsWhenDisconnected()
+{
+  DragSourceState state;
+  QVERIFY(!state.observe(10, false, true));
+  QVERIFY(state.observe(11, true, true));
+  state.reset();
+  QVERIFY(!state.observe(20, true, true)); // Reconnection takes a new baseline.
+  QVERIFY(!state.observe(20, false, true));
+  QVERIFY(state.observe(21, true, true));
 }
 } // namespace deskflow::gui::transfer
 

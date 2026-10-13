@@ -20,6 +20,25 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   target_include_directories(flowplus-transfer PUBLIC "${FLOWPLUS_SOURCE_DIR}/src/lib")
   target_link_libraries(flowplus-transfer PUBLIC Qt6::Core Qt6::Network)
   set(transfer_dependency flowplus-transfer)
+  add_library(flowplus-drop STATIC
+    "${FLOWPLUS_SOURCE_DIR}/src/lib/gui/transfer/NativeDropTarget.cpp"
+  )
+  target_include_directories(flowplus-drop PUBLIC "${FLOWPLUS_SOURCE_DIR}/src/lib")
+  target_link_libraries(flowplus-drop PUBLIC Qt6::Core)
+  if(WIN32)
+    target_sources(flowplus-drop PRIVATE "${FLOWPLUS_SOURCE_DIR}/src/lib/gui/transfer/NativeDropTargetWindows.cpp")
+    target_link_libraries(flowplus-drop PUBLIC ole32 oleaut32 uuid oleacc shell32)
+  elseif(APPLE)
+    enable_language(OBJCXX)
+    set_target_properties(flowplus-drop PROPERTIES OBJCXX_STANDARD 20 OBJCXX_STANDARD_REQUIRED ON)
+    target_sources(flowplus-drop PRIVATE
+      "${FLOWPLUS_SOURCE_DIR}/src/lib/gui/transfer/NativeDropTargetMac.mm"
+      "${FLOWPLUS_SOURCE_DIR}/src/lib/gui/transfer/NativeDragSource.mm"
+    )
+    target_link_libraries(flowplus-drop PUBLIC Qt6::Gui)
+    target_link_libraries(flowplus-drop PUBLIC "-framework Cocoa" "-framework ApplicationServices")
+  endif()
+  set(drop_dependency flowplus-drop)
   add_library(flowplus-protocol STATIC
     "${FLOWPLUS_SOURCE_DIR}/src/lib/deskflow/ProtocolUtil.cpp"
     "${FLOWPLUS_SOURCE_DIR}/src/lib/deskflow/DeskflowException.cpp"
@@ -33,6 +52,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   set(protocol_dependency flowplus-protocol)
 else()
   set(transfer_dependency gui)
+  set(drop_dependency gui)
   set(protocol_dependency app base io arch)
   if(WIN32)
     list(APPEND protocol_dependency platform version)
@@ -64,15 +84,19 @@ add_executable(LocalSendServiceTests ../gui/transfer/LocalSendServiceTests.cpp)
 target_link_libraries(LocalSendServiceTests PRIVATE ${transfer_dependency} Qt6::Test)
 add_test(NAME LocalSendServiceTests COMMAND LocalSendServiceTests -o -,txt)
 
+add_executable(NativeDropTargetTests NativeDropTargetTests.cpp)
+target_link_libraries(NativeDropTargetTests PRIVATE ${drop_dependency} Qt6::Test)
+add_test(NAME NativeDropTargetTests COMMAND NativeDropTargetTests -o -,txt)
+
 if(NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   if(WIN32)
     # vcpkg's post-link deployment and windeployqt must not read/write DLLs
     # in the same output directory while these targets link in parallel.
-    foreach(transfer_test TransferProtocolTests ProtocolUtilLimitsTests LocalSendServiceTests)
+    foreach(transfer_test TransferProtocolTests ProtocolUtilLimitsTests LocalSendServiceTests NativeDropTargetTests)
       set_target_properties(${transfer_test} PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/${transfer_test}"
       )
     endforeach()
   endif()
-  set_property(GLOBAL APPEND PROPERTY ${CMAKE_PROJECT_NAME}_tests TransferProtocolTests ProtocolUtilLimitsTests LocalSendServiceTests)
+  set_property(GLOBAL APPEND PROPERTY ${CMAKE_PROJECT_NAME}_tests TransferProtocolTests ProtocolUtilLimitsTests LocalSendServiceTests NativeDropTargetTests)
 endif()

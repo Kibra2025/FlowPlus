@@ -10,7 +10,13 @@ if(APPLE)
   set (platform_sources
     OSXHelpers.h
     OSXHelpers.mm
+    transfer/NativeDragSource.h
+    transfer/NativeDragSource.mm
+    transfer/DragSourceState.h
+    transfer/NativeDropTargetMac.mm
   )
+elseif(WIN32)
+  set(platform_sources transfer/NativeDropTargetWindows.cpp)
 endif()
 
 add_library(${target} STATIC
@@ -126,6 +132,8 @@ add_library(${target} STATIC
   transfer/LocalSendService.h
   transfer/TransferUtils.h
   transfer/TransferStorage.h
+  transfer/NativeDropTarget.h
+  transfer/NativeDropTarget.cpp
 )
 
 target_link_libraries(
@@ -142,5 +150,10 @@ if(WIN32)
     base
     arch
     net
+    ole32
+    oleaut32
+    uuid
+    oleacc
+    shell32
   )
 endif()

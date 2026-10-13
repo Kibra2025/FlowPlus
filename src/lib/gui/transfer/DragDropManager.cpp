@@ -7,6 +7,9 @@
 #include "DragDropManager.h"
 #include "TransferStorage.h"
 #include "TransferUtils.h"
+#if defined(Q_OS_MACOS)
+#include "NativeDragSource.h"
+#endif
 
 #include "common/Settings.h"
 #include "common/TransferProtocol.h"
@@ -15,7 +18,6 @@
 #include "gui/core/NetworkMonitor.h"
 
 #include <QApplication>
-#include <QClipboard>
 #include <QCursor>
 #include <QDir>
 #include <QDragEnterEvent>
@@ -28,22 +30,11 @@
 #include <QMimeData>
 #include <QPainter>
 #include <QScreen>
-#include <QStandardPaths>
+#include <QThread>
 #include <QUdpSocket>
 #include <QUrl>
 #include <QUuid>
 #include <QtEndian>
-
-#include <cstring>
-
-#if defined(Q_OS_WIN)
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <ShlObj.h>
-#include <Windows.h>
-#include <shellapi.h>
-#endif
 
 namespace deskflow::gui::transfer {
 namespace {
@@ -140,6 +131,18 @@ DragDropManager::DragDropManager(deskflow::gui::CoreProcess &coreProcess, QObjec
 {
   m_localSend->setAlias(Settings::value(Settings::Core::ComputerName).toString());
   m_localSend->start(kLocalSendDefaultPort);
+#if defined(Q_OS_MACOS)
+  // Finder's native drag may never enter our narrow Qt edge windows (for
+  // example beneath the Dock). Stage fresh native file drags early enough for
+  // the core to allow crossing while the left button is still held.
+  m_nativeDragTimer.setInterval(33);
+  connect(&m_nativeDragTimer, &QTimer::timeout, this, [this] {
+    const auto files = pollNativeDragSource(m_nativeDragState, m_localScreenActive && canTransfer());
+    if (!files.isEmpty()) {
+      stageFilesForDrag(files);
+    }
+  });
+#endif
   m_outgoingTimeout.setSingleShot(true);
   m_incomingTimeout.setSingleShot(true);
   connect(&m_outgoingTimeout, &QTimer::timeout, this, [this] { cancelOutgoing(tr("File transfer timed out")); });
@@ -225,6 +228,10 @@ DragDropManager::~DragDropManager()
 {
   // MainWindow owns CoreProcess as a value member, but this manager as a QObject
   // child. The value member may already be gone during QObject child teardown.
+  if (m_placementThread) {
+    m_placementThread->requestInterruption();
+    m_placementThread->wait();
+  }
   m_localSend->cancelOutgoingTransfer(m_outgoingId);
   m_outgoingId.clear();
   cancelOutgoing();
@@ -246,6 +253,19 @@ bool DragDropManager::canTransfer() const
 
 void DragDropManager::updateEdgeSensors()
 {
+#if defined(Q_OS_MACOS)
+  if (canTransfer()) {
+    if (!m_nativeDragTimer.isActive()) {
+      // Baseline before starting; a drag that predates this connection must
+      // not be mistaken for a newly authorized local gesture.
+      pollNativeDragSource(m_nativeDragState, false);
+      m_nativeDragTimer.start();
+    }
+  } else {
+    m_nativeDragTimer.stop();
+    m_nativeDragState.reset();
+  }
+#endif
   for (auto *sensor : m_edgeSensors) {
     sensor->hide();
     sensor->deleteLater();
@@ -310,7 +330,7 @@ bool DragDropManager::stageFiles(const QStringList &filePaths)
     Q_EMIT statusMessage(tr("Connect a FlowPlus peer with TLS enabled before sending files"));
     return false;
   }
-  if (m_outgoingSending || !m_incomingId.isEmpty()) {
+  if (m_outgoingSending || !m_incomingId.isEmpty() || m_placementThread) {
     Q_EMIT statusMessage(tr("Wait for the current transfer to finish"));
     return false;
   }
@@ -514,6 +534,7 @@ void DragDropManager::onDragInfoReceived(const QString &sourceScreen, uint32_t, 
       return;
     }
     if (!validateTransferManifest(manifest, total) || !m_outgoingId.isEmpty() || m_incomingAccepted ||
+        m_placementThread ||
         (!m_incomingId.isEmpty() && (id != m_incomingId || sourceScreen != m_incomingSourceScreen))) {
       sendDragMessage(
           {{QStringLiteral("action"), QStringLiteral("dragCancel")}, {QStringLiteral("transferId"), id}}, sourceScreen
@@ -627,6 +648,9 @@ void DragDropManager::acceptIncomingTransfer(bool nativeDrop, const QPoint &drop
   if (m_incomingId.isEmpty() || m_incomingAccepted) {
     return;
   }
+  // Snapshot before any filesystem work: the pointer or Finder/Explorer tab
+  // can change while preparing storage or receiving the file.
+  const auto target = nativeDrop ? captureNativeDropTarget() : NativeDropTarget{};
   qint64 total = 0;
   if (!validateTransferManifest(m_incomingManifest, total)) {
     cancelIncoming(tr("Could not prepare the download folder"));
@@ -640,9 +664,7 @@ void DragDropManager::acceptIncomingTransfer(bool nativeDrop, const QPoint &drop
   m_remoteDragActive = false;
   m_incomingNativeDrop = nativeDrop;
   m_incomingDropPos = dropPos;
-  if (nativeDrop) {
-    captureNativeDropTarget();
-  }
+  m_nativeDropTarget = target;
   const bool directAuthorized =
       m_localSend->authorizeIncomingTransfer(m_incomingSenderIp, m_incomingId, m_incomingManifest, dropPos);
   m_incomingTimeout.start(kTransferTimeout);
@@ -714,7 +736,7 @@ void DragDropManager::cancelIncoming(const QString &reason, bool notifyPeer)
   m_tunnelIncomingFiles.clear();
   m_tunnelIncomingIndex = 0;
   m_tunnelIncomingReceivedBytes = 0;
-  m_nativeDropTarget = 0;
+  m_nativeDropTarget = {};
   m_overlay->hideOverlay();
   if (!reason.isEmpty()) {
     Q_EMIT statusMessage(reason);
@@ -962,129 +984,43 @@ void DragDropManager::handleCompletedFiles(const QStringList &savedPaths, const 
     return;
   }
   const bool nativeDrop = m_incomingNativeDrop;
-  const bool delivered = nativeDrop && injectNativeDrop(savedPaths);
+  const auto target = m_nativeDropTarget;
   cancelIncoming({}, false);
-  m_overlay->showCompleted(tr("Files received: %1").arg(savedPaths.size()));
-  Q_EMIT statusMessage(
-      delivered    ? tr("Files received; native drop requested")
-      : nativeDrop ? tr("Files saved in Downloads/FlowPlus and available to paste")
-                   : tr("Files saved in Downloads/FlowPlus")
-  );
-  Q_EMIT filesReceived(savedPaths);
-}
 
-void DragDropManager::captureNativeDropTarget()
-{
-#if defined(Q_OS_WIN)
-  POINT point;
-  if (!GetCursorPos(&point)) {
+  const auto report = [this, nativeDrop](const NativeDropPlacement &result) {
+    m_overlay->showCompleted(tr("Files received: %1").arg(result.paths.size()));
+    const auto directory = QDir::toNativeSeparators(QFileInfo(result.paths.first()).absolutePath());
+    auto message = result.usedDropTarget ? tr("Files delivered to %1").arg(directory)
+                   : nativeDrop          ? tr("Drop location unavailable. Files saved in %1").arg(directory)
+                                         : tr("Files saved in %1").arg(directory);
+    if (result.usedDropTarget && !result.remainingDownloadPaths.isEmpty()) {
+      message += tr(". Additional download copies remain in %1")
+                     .arg(QDir::toNativeSeparators(QFileInfo(result.remainingDownloadPaths.first()).absolutePath()));
+    }
+    Q_EMIT statusMessage(message);
+    Q_EMIT filesReceived(result.paths);
+  };
+  if (!nativeDrop || target.directory.isEmpty()) {
+    report({savedPaths, false, savedPaths});
     return;
   }
-  const auto target = WindowFromPoint(point);
-  if (!target) {
-    return;
-  }
-  wchar_t className[256] = {};
-  GetClassNameW(target, className, 256);
-  DWORD process = 0;
-  GetWindowThreadProcessId(target, &process);
-  m_nativeDropTarget = reinterpret_cast<quintptr>(target);
-  m_nativeDropProcess = process;
-  m_nativeDropClass = QString::fromWCharArray(className);
-  m_nativeDropPoint = QPoint(point.x, point.y);
-#endif
-}
 
-bool DragDropManager::injectNativeDrop(const QStringList &savedPaths)
-{
-  auto *mime = new QMimeData;
-  QList<QUrl> urls;
-  for (const auto &path : savedPaths) {
-    urls.append(QUrl::fromLocalFile(path));
-  }
-  mime->setUrls(urls);
-  QGuiApplication::clipboard()->setMimeData(mime);
-
-#if defined(Q_OS_WIN)
-  auto target = reinterpret_cast<HWND>(m_nativeDropTarget);
-  DWORD process = 0;
-  wchar_t className[256] = {};
-  if (!target || !IsWindow(target) || !IsWindowVisible(target)) {
-    return false;
-  }
-  GetWindowThreadProcessId(target, &process);
-  GetClassNameW(target, className, 256);
-  if (process != m_nativeDropProcess || QString::fromWCharArray(className) != m_nativeDropClass) {
-    return false;
-  }
-  DWORD shellProcess = 0;
-  GetWindowThreadProcessId(GetShellWindow(), &shellProcess);
-  bool isDesktop = false;
-  for (auto ancestor = target; ancestor; ancestor = GetParent(ancestor)) {
-    GetClassNameW(ancestor, className, 256);
-    const auto name = QString::fromWCharArray(className);
-    isDesktop = process == shellProcess && (name == QStringLiteral("SHELLDLL_DefView") ||
-                                            name == QStringLiteral("Progman") || name == QStringLiteral("WorkerW"));
-    if (isDesktop) {
-      break;
-    }
-  }
-  if (isDesktop) {
-    const auto desktop = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
-    if (desktop.isEmpty()) {
-      return false;
-    }
-    QStringList copied;
-    for (const auto &source : savedPaths) {
-      const auto destination = uniqueTransferDestination(desktop, QFileInfo(source).fileName());
-      if (destination.isEmpty() || !QFile::copy(source, destination)) {
-        for (const auto &path : copied) {
-          QFile::remove(path);
-        }
-        return false;
-      }
-      copied.append(destination);
-    }
-    return true;
-  }
-  // WM_DROPFILES is a legacy opt-in API. Modern OLE targets may not support it.
-  while (target && !(GetWindowLongPtrW(target, GWL_EXSTYLE) & WS_EX_ACCEPTFILES)) {
-    target = GetParent(target);
-  }
-  if (!target) {
-    return false;
-  }
-  QByteArray paths;
-  for (const auto &path : savedPaths) {
-    const auto native = QDir::toNativeSeparators(path);
-    paths.append(reinterpret_cast<const char *>(native.utf16()), (native.size() + 1) * sizeof(wchar_t));
-  }
-  paths.append(sizeof(wchar_t), '\0');
-  const auto memory = GlobalAlloc(GHND, sizeof(DROPFILES) + paths.size());
-  if (!memory) {
-    return false;
-  }
-  auto *drop = static_cast<DROPFILES *>(GlobalLock(memory));
-  if (!drop) {
-    GlobalFree(memory);
-    return false;
-  }
-  drop->pFiles = sizeof(DROPFILES);
-  drop->pt = POINT{m_nativeDropPoint.x(), m_nativeDropPoint.y()};
-  ScreenToClient(target, &drop->pt);
-  drop->fNC = FALSE;
-  drop->fWide = TRUE;
-  std::memcpy(reinterpret_cast<char *>(drop) + sizeof(DROPFILES), paths.constData(), paths.size());
-  GlobalUnlock(memory);
-  if (!PostMessageW(target, WM_DROPFILES, reinterpret_cast<WPARAM>(memory), 0)) {
-    GlobalFree(memory);
-    return false;
-  }
-  return true;
-#else
-  // Finder requires a native drag session; received URLs are available to paste.
-  return false;
-#endif
+  // Disk placement can cross volumes and must not block shared mouse input or
+  // network events. Own the worker until completion; shutdown cancels/joins it.
+  Q_EMIT statusMessage(tr("Placing received files in %1…").arg(QDir::toNativeSeparators(target.directory)));
+  auto result = std::make_shared<NativeDropPlacement>();
+  auto *worker = QThread::create([savedPaths, target, result] {
+    *result =
+        placeReceivedFiles(savedPaths, target, [] { return QThread::currentThread()->isInterruptionRequested(); });
+  });
+  worker->setParent(this);
+  m_placementThread = worker;
+  connect(worker, &QThread::finished, this, [this, worker, result, report] {
+    m_placementThread = nullptr;
+    worker->deleteLater();
+    report(*result);
+  });
+  worker->start();
 }
 
 } // namespace deskflow::gui::transfer

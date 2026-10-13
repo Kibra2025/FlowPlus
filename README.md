@@ -13,7 +13,7 @@ The goal is simple: drag files from one computer, move the pointer to another co
 1. Connect both computers to FlowPlus, configure their screen positions, enable TLS and peer fingerprint checking, and verify the peer certificates.
 2. Drag regular files from a file manager toward the edge that leads to the receiving screen. FlowPlus stages the selected files and sends their metadata to that connected peer.
 3. When the pointer reaches the receiving screen, an overlay shows the pending drop. Releasing the left mouse button requests the transfer.
-4. Files arrive in the receiver's `Downloads/FlowPlus` folder. After a gesture drop, the application puts the received file URLs on the clipboard. Manual transfers require a receiver prompt and leave the clipboard unchanged.
+4. FlowPlus captures the destination at release. For a recognized Finder/Explorer folder or desktop, it places the completed files there without replacing existing files. Unsupported or unwritable destinations fall back to `Downloads/FlowPlus`. **Received files** opens the last delivery folder. Manual transfers require a receiver prompt and use the download folder. File receipt does not replace the clipboard or remove originals on the sending computer.
 
 The native Qt service implements LocalSend v2 REST negotiation and streaming. It does not require Flutter, Dart, Rust, a running LocalSend app, or a nested LocalSend checkout. If direct transfer preparation cannot reach the peer, FlowPlus can use the established TLS input connection for a bounded, acknowledged file stream. A rejected transfer is not retried through the tunnel.
 
@@ -28,12 +28,18 @@ FlowPlus does not provide a hosted relay, account service, automatic NAT travers
 - Regular files only: folders and recursive directory transfers are not supported.
 - Up to 128 files and 64 GiB total per transfer; incoming names must be portable basenames of at most 255 UTF-8 bytes.
 - Received files are saved without replacing existing files. Interrupted partial files are not published as completed downloads.
-- On macOS, the reliable delivery destination is `Downloads/FlowPlus`, with clipboard access after gesture drops. A native Finder drop is not implemented.
-- Windows desktop delivery and optional `WM_DROPFILES` support depend on the destination application. Modern Explorer/application OLE drops are not guaranteed.
+- Destination recognition supports filesystem folders exposed by Finder Accessibility and Explorer Shell/Accessibility, including resolvable folder icons and desktop backgrounds. Virtual locations, ambiguous icons and arbitrary application drops use the download fallback. This does not position the resulting icon at an exact pixel or simulate application-specific native drop events.
 - Edge drag capture depends on operating system drag handling, display scaling and permissions. Manual transfer remains useful for checking the transport separately.
 - LocalSend interoperability is partial: unsolicited offers from the standalone app are rejected, and HTTPS LocalSend upload is not implemented or silently downgraded. The supported receive workflow is an authorized transfer between connected FlowPlus peers.
 
 ## Build and contribute
+
+On first launch on macOS, FlowPlus keeps an Accessibility setup window open,
+requests the system permission and continues when access is granted. Use **Open
+System Settings** to enable FlowPlus in Privacy & Security > Accessibility.
+After replacing or re-signing an app, macOS may require removing its old entry
+and adding the app again. Development DMGs use ad-hoc signing, not Developer ID
+notarization; a passing CI build does not imply Apple distribution approval.
 
 Start with [build instructions](docs/dev/build.md), [architecture](docs/ARCHITECTURE.md), [testing](docs/TESTING.md), and [contributing](.github/CONTRIBUTING.md). Builds produce `flowplus` (`FlowPlus.app` on macOS), `flowplus-core`, and on Windows `flowplus-daemon`. Windows executable names have the `.exe` suffix. Internal CMake target names and some upstream catalog/resource filenames remain stable for maintainability.
 

@@ -35,6 +35,8 @@ endif()
 add_executable(${target} WIN32 MACOSX_BUNDLE
   ${platform_extra}
   ../res/deskflow.qrc
+  AccessibilitySetupDialog.cpp
+  AccessibilitySetupDialog.h
   deskflow-gui.cpp
 )
 

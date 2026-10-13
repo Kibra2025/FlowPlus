@@ -23,7 +23,7 @@ There is one C++/Qt repository. A LocalSend source checkout is not needed to con
 
 ## Transfer lifecycle
 
-`DragDropManager` stages local regular files, identifies the actual connected destination screen, and coordinates a single transfer lifecycle. Metadata carries a transfer identifier and a file manifest. `EdgeDropSensor` observes file-manager drags at screen edges. `DragOverlayWidget` displays pending incoming drops without treating a stationary cursor as a released button.
+`DragDropManager` stages local regular files, identifies the actual connected destination screen, and coordinates a single transfer lifecycle. Metadata carries a transfer identifier and a file manifest. `EdgeDropSensor` observes file-manager drags at screen edges. On macOS, `NativeDragSource` also observes the dedicated drag pasteboard during a held left-button gesture; revision tracking rejects stale drags after release, reconnection or screen return. It only polls while a verified transfer peer is available. This stages Finder files before reaching the edge so the core can allow crossing while the button is held. `DragOverlayWidget` displays pending incoming drops without treating a stationary cursor as a released button.
 
 Screen entry/leave and mouse release events flow from the core to the GUI through local IPC. Drag metadata and file transfer messages travel through the connected client/server protocol (`DDRG` and `DFTR`). Before sending these extensions, the peers negotiate the `FPLS` capability and its acknowledgement through an option that upstream peers can ignore. An upstream Deskflow peer can continue input sharing without receiving unsupported transfer frames.
 
@@ -47,7 +47,11 @@ LocalSend discovery uses multicast 224.0.0.167 UDP 53317 and normally does not c
 
 ## Operating system delivery
 
-The portable completed-file destination is the download folder. Gesture drops also put file URLs on the clipboard; manual transfers leave the clipboard unchanged. macOS does not have a native Finder drop implementation here. Windows desktop copies and optional legacy `WM_DROPFILES` delivery have narrower application support than an OLE drag/drop operation; completion must not be described as a universal native drop.
+`NativeDropTarget` snapshots a filesystem directory at release, before storage preparation or download. Windows uses Shell COM to find the active Explorer view and Accessibility hit testing to distinguish its background from a resolvable subfolder icon. macOS uses Finder's Accessibility URL/document attributes and desktop window identification; no Automation/AppleScript access is requested. Unknown windows, virtual folders and ambiguous icons produce no destination.
+
+The completed download is initially published in `Downloads/FlowPlus`. Recognized targets receive a copy on a worker thread, using private temporary files, collision-safe names and no overwrite. Failure or cancellation before the entire batch is placed rolls back only copies from that batch and leaves the downloads available. After successful placement, unchanged download copies are removed; cleanup failures retain the extra copies and are reported. Files on the sending computer are never removed. Shutdown interrupts and joins the worker. New incoming offers are declined while placement is in progress. The completion signal reports the actual paths, Received files opens the last delivery folder, and the UI explains any fallback. File receipt leaves the clipboard unchanged. This is directory placement, not arbitrary OLE/AppKit application drop injection or desktop icon positioning.
+
+The macOS GUI's `AccessibilitySetupDialog` requests authorization once, waits without closing the app, and rechecks after returning from System Settings. Ad-hoc bundle signing runs after all installed resources, followed by strict recursive signature verification. Developer ID signing and notarization are not configured.
 
 Display edges, native drag ownership, remote pointer coordinates, permissions and injected mouse events interact differently across platforms. Real Windows ↔ macOS tests are required independently of HTTP/tunnel regression tests.
 

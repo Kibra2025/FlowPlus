@@ -41,7 +41,7 @@
 
 	<!-- Local Lan Entitlements -->
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>This app uses local network permissions for communication between a Deskflow server and clients.</string>
+	<string>FlowPlus uses your local network to share mouse, keyboard and files between your computers.</string>
 	<key>com.apple.security.networking.local</key>
 	<true/>
 
