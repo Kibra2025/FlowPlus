@@ -174,10 +174,13 @@ void NativeDropTargetTests::changedDownloadIsPreservedAfterCommit()
   QTemporaryDir download;
   QTemporaryDir destination;
   const auto path = QDir(download.path()).filePath(QStringLiteral("test.txt"));
-  const auto delivered = QDir(destination.path()).filePath(QStringLiteral("test.txt"));
+  // Placement returns paths under the canonical target directory. On macOS,
+  // temporary directories can use /var, which resolves to /private/var.
+  const QDir targetDirectory(QFileInfo(destination.path()).canonicalFilePath());
+  const auto delivered = targetDirectory.filePath(QStringLiteral("test.txt"));
   QVERIFY(writeFile(path, "download"));
   bool changed = false;
-  const auto result = placeReceivedFiles({path}, {QFileInfo(destination.path()).canonicalFilePath()}, [&] {
+  const auto result = placeReceivedFiles({path}, {targetDirectory.path()}, [&] {
     if (!changed && QFileInfo::exists(delivered)) {
       changed = writeFile(path, "local edit after copying");
     }
@@ -197,15 +200,15 @@ void NativeDropTargetTests::cancellationAfterCommitPreservesDestinationAndDownlo
   QTemporaryDir destination;
   const auto first = QDir(download.path()).filePath(QStringLiteral("first.txt"));
   const auto path = QDir(download.path()).filePath(QStringLiteral("test.txt"));
-  const auto firstDelivered = QDir(destination.path()).filePath(QStringLiteral("first.txt"));
-  const auto delivered = QDir(destination.path()).filePath(QStringLiteral("test.txt"));
+  const QDir targetDirectory(QFileInfo(destination.path()).canonicalFilePath());
+  const auto firstDelivered = targetDirectory.filePath(QStringLiteral("first.txt"));
+  const auto delivered = targetDirectory.filePath(QStringLiteral("test.txt"));
   QVERIFY(writeFile(first, "first"));
   QVERIFY(writeFile(path, "download"));
   // Interrupt once cleanup has removed one received copy. A rollback now would
   // lose that file: all destinations must remain, along with unremoved copies.
-  const auto result = placeReceivedFiles({first, path}, {QFileInfo(destination.path()).canonicalFilePath()}, [&] {
-    return !QFileInfo::exists(first);
-  });
+  const auto result =
+      placeReceivedFiles({first, path}, {targetDirectory.path()}, [&] { return !QFileInfo::exists(first); });
   QVERIFY(result.usedDropTarget);
   QCOMPARE(result.paths, (QStringList{firstDelivered, delivered}));
   QVERIFY(!QFileInfo::exists(first));

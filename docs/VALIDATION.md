@@ -281,3 +281,20 @@ The macOS isolated transfer and startup CI job passes. This confirms build and
 signature integrity, not notarization or physical Finder drag behavior. A fresh
 push is required to validate the updated catalogs across all CI Qt versions and
 the Windows include fix with MSVC.
+
+## macOS canonical-path test expectations (2026-10-13)
+
+Continuous Integration run 38440524042 for commit bcd4ff4ab confirms the Windows
+COM fix and catalog updates: Windows and Linux main jobs pass. Both macOS jobs
+build and package successfully, then fail only NativeDropTargetTests (32 of 33
+suites pass). In two cases, actual destination paths start with /private/var
+while expected paths start with /var. The tests constructed expectations from
+QTemporaryDir's original path, although placement intentionally returns paths
+under the supplied canonical destination.
+
+The changed-download and post-commit cancellation tests now build expected
+destination filenames under that same canonical directory. The assertions for
+preserved edited downloads, completed contents, canceled cleanup and remaining
+copies stay intact. Production placement behavior is unchanged. The updated
+Windows isolated transfer build and all five local CTest suites pass; formatting
+and diff checks pass. Confirmation on macOS requires the next CI run.
