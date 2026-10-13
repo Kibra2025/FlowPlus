@@ -351,31 +351,31 @@ Do you want to connect to the server?
     <name>MainWindow</name>
     <message>
         <source>This computer&apos;s name:</source>
-        <translation>이 컴퓨터 이름:</translation>
+        <translation type="vanished">이 컴퓨터 이름:</translation>
     </message>
     <message>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Name can&apos;t have have spaces or special characters&lt;/p&gt;&lt;p&gt;Use Enter to save the name change.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;이름에는 공백이나 특수문자를 사용할 수 없습니다&lt;/p&gt;&lt;p&gt;Enter 키로 이름 변경을 저장합니다.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <translation type="vanished">&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;이름에는 공백이나 특수문자를 사용할 수 없습니다&lt;/p&gt;&lt;p&gt;Enter 키로 이름 변경을 저장합니다.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <source>Edit Computer Name</source>
-        <translation>컴퓨터 이름 편집</translation>
+        <translation type="vanished">컴퓨터 이름 편집</translation>
     </message>
     <message>
         <source>Use this computer&apos;s keyboard and mouse
 (make this computer the server)</source>
-        <translation>이 컴퓨터의 키보드와 마우스를 사용
+        <translation type="vanished">이 컴퓨터의 키보드와 마우스를 사용
 (이 컴퓨터를 서버로 설정)</translation>
     </message>
     <message>
         <source>Use another computer’s mouse and keyboard
 (make this computer the client)</source>
-        <translation>다른 컴퓨터의 키보드와 마우스를 사용
+        <translation type="vanished">다른 컴퓨터의 키보드와 마우스를 사용
 (이 컴퓨터를 클라이언트로 설정)</translation>
     </message>
     <message>
         <source>&amp;Configure Server</source>
-        <translation>서버 설정(&amp;C)</translation>
+        <translation type="vanished">서버 설정(&amp;C)</translation>
     </message>
     <message>
         <source>Export server configuration</source>
@@ -383,7 +383,7 @@ Do you want to connect to the server?
     </message>
     <message>
         <source>You must select a mode</source>
-        <translation>모드를 선택해야 합니다</translation>
+        <translation type="vanished">모드를 선택해야 합니다</translation>
     </message>
     <message>
         <source>&amp;Start</source>
@@ -572,15 +572,15 @@ Valid names:
     </message>
     <message>
         <source>&amp;Configure Client</source>
-        <translation type="unfinished">클라이언트 구성 (&amp;C)</translation>
+        <translation type="obsolete">클라이언트 구성 (&amp;C)</translation>
     </message>
     <message>
         <source>Connect to:</source>
-        <translation type="unfinished">연결 대상:</translation>
+        <translation type="obsolete">연결 대상:</translation>
     </message>
     <message>
         <source>&lt;html&gt;Hostname or IP address of the server computer.&lt;br/&gt;May contain a comma seperated list.&lt;/html&gt;</source>
-        <translation>&lt;html&gt;서버 컴퓨터의 호스트 이름 또는 IP 주소입니다.&lt;br/&gt;목록 요소는 쉼표로 구분됩니다.&lt;/html&gt;</translation>
+        <translation type="vanished">&lt;html&gt;서버 컴퓨터의 호스트 이름 또는 IP 주소입니다.&lt;br/&gt;목록 요소는 쉼표로 구분됩니다.&lt;/html&gt;</translation>
     </message>
     <message>
         <source>read</source>
@@ -615,10 +615,6 @@ Additionally, check you are able to %1 the server config file: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Send files...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Received files</source>
         <translation type="unfinished"></translation>
     </message>
@@ -640,6 +636,126 @@ Additionally, check you are able to %1 the server config file: %2</source>
     </message>
     <message>
         <source>Drag files to a connected screen, or choose Send files</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not connected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>One workspace. Across your screens.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This device</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Use letters, numbers, dots, hyphens or underscores. Press Enter to save.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edit</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edit computer name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>01 / CONNECTION</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Choose where control starts.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This device controls
+Share its mouse and keyboard (server)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Another device controls
+Use its mouse and keyboard (client)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Use the controlling device&apos;s mouse to move between screens and drag files in either direction.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select a role on this device to get started.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Arrange screens</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Export</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Server</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Local IP address or hostname</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hostname or IP address of the controlling computer.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Options</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>02 / FILES</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drop it. Keep going.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drag a file across the screen edge, or drop files here to send them.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File transfer status</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Send files…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Connected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Waiting for connection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Connecting…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>%n device(s) connected</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Transferring %1 · %2%</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -1418,6 +1534,49 @@ Enabling this setting will disable the server config GUI.</source>
     </message>
 </context>
 <context>
+    <name>deskflow::gui::AccessibilitySetupDialog</name>
+    <message>
+        <source>Set up %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Allow mouse and keyboard sharing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 needs Accessibility access to share your mouse and keyboard.
+
+Open System Settings, then Privacy &amp; Security &gt; Accessibility, and enable %1. If it is missing, use + to add it from Applications.
+
+This window will continue automatically when access is available.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Waiting for Accessibility access…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Already enabled? After replacing or re-signing %1, remove its old entry and add the app again. If macOS asks you to quit and reopen it, do so.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Quit</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Check again</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open System Settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not open System Settings. Open it from the Apple menu, then select Privacy &amp; Security &gt; Accessibility.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>deskflow::gui::transfer::DragDropManager</name>
     <message>
         <source>File transfer timed out</source>
@@ -1576,15 +1735,23 @@ Enabling this setting will disable the server config GUI.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Files saved in Downloads/FlowPlus and available to paste</source>
+        <source>Files delivered to %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Files saved in Downloads/FlowPlus</source>
+        <source>Drop location unavailable. Files saved in %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Files received; native drop requested</source>
+        <source>Files saved in %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>. Additional download copies remain in %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Placing received files in %1…</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

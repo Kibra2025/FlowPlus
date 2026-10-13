@@ -308,7 +308,10 @@ jobs:
         shell: bash
         run: |
           if [[ `git status --porcelain` ]]; then
-            echo "Unexpected changes to the repo, Often caused by forgetting to commit the updated translation files"
+            echo "Unexpected changes to the repo. Regenerate and commit translation catalogs after changing UI text."
+            git status --short
+            git diff --stat
+            git diff -- translations
             exit 1
           fi
 

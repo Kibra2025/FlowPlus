@@ -238,3 +238,46 @@ Windows/macOS builds. The previously requested strict LAN-only policy is not
 implemented by these changes: reachable remote core addresses and TLS fallback
 remain possible. Restricting all transports requires a separate shared on-link
 policy rather than only a private-IP check or a Windows firewall rule.
+
+## Windows SDK COM include regression (2026-10-13)
+
+The user supplied the Windows transfer-workflow log for commit 5afff3edc. MSVC
+failed while parsing exdisp.h forward declarations (C2146); the subsequent COM
+interface redefinition and unique_ptr errors were cascading diagnostics, before
+the tests could run. The native destination source used WIN32_LEAN_AND_MEAN and
+included exdisp.h without first including the COM base declarations.
+
+NativeDropTargetWindows.cpp now explicitly includes objbase.h before exdisp.h,
+with a separate include block so clang-format preserves the dependency order.
+The Microsoft SDK declares its ExDisp interfaces before importing other COM
+headers, whereas the local MinGW header includes OLE definitions first. That
+compiler/header difference explains why the previous local check passed.
+
+The updated isolated Windows transfer library rebuilt and all five transfer
+CTest suites passed locally (MinGW/Qt 6.7.3). Formatting and diff checks passed.
+The host has no MSVC/Windows SDK installation, so the next GitHub MSVC build is
+required to confirm the reported compiler regression is resolved there.
+
+## Full CI catalog synchronization (2026-10-13)
+
+The logs of Continuous Integration run 38437435324 for commit 5afff3edc
+show two failure classes. Both MSVC builds stop on the COM include regression
+described above. All fifteen macOS/Linux main builds finish compilation and stop
+at the repository cleanliness check. That check did not print changed paths.
+Local Qt 6.7.3 extraction reproduces uncommitted changes in all seven translation
+catalogs: the new UI, Accessibility dialog and destination status text were
+missing. The catalogs are now regenerated with the project's lupdate options,
+preserving existing translations and leaving new entries unfinished.
+
+A separate CMake harness using the same qt_create_translation calls runs
+lupdate and lrelease successfully for all seven catalogs. Their SHA-256 hashes
+are unchanged by that second extraction; compiled catalog counts match the
+captured CI output. The workflow keeps the cleanliness check and now prints
+status and translation diffs on failure. TESTING.md documents the update target.
+
+The macOS arm64 and x64 logs also confirm DMG generation and successful final
+codesign verification (valid on disk and satisfying the designated requirement).
+The macOS isolated transfer and startup CI job passes. This confirms build and
+signature integrity, not notarization or physical Finder drag behavior. A fresh
+push is required to validate the updated catalogs across all CI Qt versions and
+the Windows include fix with MSVC.

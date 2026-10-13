@@ -14,6 +14,10 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <Windows.h>
+// WIN32_LEAN_AND_MEAN excludes COM definitions from Windows.h. The Microsoft
+// SDK's exdisp.h uses them in forward declarations before its own imports.
+#include <objbase.h>
+
 #include <exdisp.h>
 #include <oleacc.h>
 #include <servprov.h>

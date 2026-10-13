@@ -43,6 +43,19 @@ ctest --test-dir build/src/unittests -C Release --output-on-failure
 
 On headless Linux, set `QT_QPA_PLATFORM=minimal`. `SKIP_BUILD_TESTS=ON` skips the post-build test run, not compilation of test targets. Compile with warnings as errors when supported by the selected toolchain. Run the repository clang-format and REUSE checks before publishing changes.
 
+After changing UI text, build `app_translations` in the full application build
+and commit the updated `translations/*.ts` catalogs:
+
+```sh
+cmake --build build --target app_translations --config Release
+git diff -- translations
+```
+
+This target runs Qt Linguist's `lupdate` and `lrelease`. New untranslated entries
+remain unfinished and use the English source text at runtime. Keep existing
+translations and review the catalog diff. CI rejects source changes produced by
+the build, including missing catalog updates.
+
 ## Windows ↔ macOS checklist
 
 Use a real Windows computer and a real macOS computer with the same FlowPlus build. Repeat transfers in both directions. Keep the source file available for hash comparison.
