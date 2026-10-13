@@ -65,5 +65,14 @@ target_link_libraries(LocalSendServiceTests PRIVATE ${transfer_dependency} Qt6::
 add_test(NAME LocalSendServiceTests COMMAND LocalSendServiceTests -o -,txt)
 
 if(NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+  if(WIN32)
+    # vcpkg's post-link deployment and windeployqt must not read/write DLLs
+    # in the same output directory while these targets link in parallel.
+    foreach(transfer_test TransferProtocolTests ProtocolUtilLimitsTests LocalSendServiceTests)
+      set_target_properties(${transfer_test} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/${transfer_test}"
+      )
+    endforeach()
+  endif()
   set_property(GLOBAL APPEND PROPERTY ${CMAKE_PROJECT_NAME}_tests TransferProtocolTests ProtocolUtilLimitsTests LocalSendServiceTests)
 endif()

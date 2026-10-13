@@ -118,6 +118,22 @@ jobs establish compilation and automated checks, not physical cross-device drag
 behavior. The previous local-only limitations above are superseded only where
 this section explicitly records GitHub CI confirmation.
 
+On 2026-10-13, the `fe79af9` run confirmed passing macOS Intel packaging and both
+Flatpak jobs. Windows ARM64 failed after linking `TransferProtocolTests.exe`:
+vcpkg's dependency deployment could not read `build/bin/Qt6Core.dll` while the
+GUI's post-build deployment was updating DLLs in the same directory. The new
+transfer tests had inherited the application's global runtime output directory.
+In the full Windows build, each of the three transfer tests now has a separate
+runtime directory under `build/src/unittests/transfer`, avoiding writes shared
+with the application and the other test targets. CTest resolves their executable
+locations from the targets; the isolated suite keeps its existing layout.
+Local CMake generation using the actual full-build test directory confirmed
+distinct executable paths and CTest registration with Ninja and Ninja
+Multi-Config. All four isolated suites passed again on Windows (8.15 seconds);
+REUSE and diff checks passed.
+Windows ARM64 dependency deployment still requires confirmation in the next CI
+run. No application code or test assertions were changed for this correction.
+
 Received files reliably target the download folder at the implementation level.
 Gesture receipts also publish clipboard URLs. Windows desktop copies and optional
 legacy `WM_DROPFILES` delivery require manual validation; macOS Finder and modern
