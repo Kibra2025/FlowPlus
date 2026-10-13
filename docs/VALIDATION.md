@@ -134,6 +134,26 @@ REUSE and diff checks passed.
 Windows ARM64 dependency deployment still requires confirmation in the next CI
 run. No application code or test assertions were changed for this correction.
 
+## First continuous release
+
+The `0fdb4c9` run on 2026-10-13 passed all 17 application build jobs, both
+Flatpak builds, FreeBSD and the CI gate. The only failed job was release
+publication: `gh release delete continuous --cleanup-tag` failed because this
+repository has no release yet. The release job now explicitly requests
+`contents: write`, creates or moves only `refs/tags/continuous` to the tested
+commit using the GitHub API, and lets the release action create/update the
+prerelease and overwrite its assets in place. There is no release deletion.
+Release notes also handle a missing initial tag, and unmatched package assets
+now cause publication to fail instead of silently producing incomplete output.
+
+The actual workflow JavaScript was exercised with API doubles for first
+publication, an existing tag, a similarly named tag and API read/write denials;
+all five checks passed and API errors propagate. Both release-note Git history
+commands were checked locally. YAML, REUSE and diff checks passed. No live tag
+or release was changed locally; GitHub publication requires a new commit/run.
+See the [Git reference API](https://docs.github.com/en/rest/git/refs) and
+[release action](https://github.com/softprops/action-gh-release/tree/v3).
+
 Received files reliably target the download folder at the implementation level.
 Gesture receipts also publish clipboard URLs. Windows desktop copies and optional
 legacy `WM_DROPFILES` delivery require manual validation; macOS Finder and modern
