@@ -34,16 +34,7 @@ SPDX-License-Identifier = "MIT"
 
 [[annotations]]
 path = [
-   "deploy/mac/dmg-background.tiff"
- , "deploy/mac/dmg-volume.icns"
- , "deploy/linux/org.deskflow.deskflow.png"
- , "deploy/windows/wix-banner.png"
- , "deploy/windows/wix-dialog.png"
- , "src/apps/res/icons/deskflow-**/apps/64/deskflow*.svg"
- , "src/apps/res/image/welcome.png"
- , "src/apps/res/Deskflow.icns"
- , "src/apps/res/deskflow.ico"
- , "src/apps/res/deskflow.qrc"
+   "src/apps/res/deskflow.qrc"
 ]
 SPDX-FileCopyrightText = "Deskflow Developers"
 SPDX-License-Identifier = "GPL-2.0-only"
@@ -79,6 +70,8 @@ path = [
  , "THIRD_PARTY_NOTICES.md"
  , "docs/ARCHITECTURE.md"
  , "docs/TESTING.md"
+ , "docs/LICENSING.md"
+ , "docs/images/flowplus-interface.png"
 ]
 precedence = "override"
 SPDX-FileCopyrightText = "2026 FlowPlus Contributors"

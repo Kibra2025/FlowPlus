@@ -16,7 +16,8 @@ on:
   push:
     branches: [master]
     paths:
-      - '.github/workflows/codeql-analysis.yml'
+      - '.github/workflows/sonarcloud-analysis.yml'
+      - 'sonar-project.properties'
       - 'cmake/Libraries.cmake'
       - 'CMakeLists.txt'
       - 'src/**'

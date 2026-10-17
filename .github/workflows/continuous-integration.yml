@@ -477,7 +477,7 @@ jobs:
           token: "${{ secrets.GITHUB_TOKEN }}"
           tag_name: "continuous"
           target_commitish: "${{ github.sha }}"
-          name: "Continuous v${{env.DESKFLOW_VERSION}}"
+          name: "FlowPlus Continuous v${{env.DESKFLOW_VERSION}}"
           prerelease: true
           make_latest: false
           overwrite_files: true

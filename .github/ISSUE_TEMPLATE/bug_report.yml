@@ -10,7 +10,7 @@ body:
         > [!IMPORTANT]
         > 1. Try the latest [continuous build](https://github.com/Kibra2025/FlowPlus/releases).
         > 2. Review the file transfer limitations and manual checklist in this repository.
-        > 3. macOS users, if the app crashes, try [Apple's solution](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac).
+        > 3. For macOS launch or permission problems, read the [FlowPlus setup notes](https://github.com/Kibra2025/FlowPlus#macos-permissions-and-first-launch). A Gatekeeper warning is different from an application crash.
         > 4. Search for existing issues and avoid creating duplicates.
         > 5. Provide descriptive title for this issue.
 

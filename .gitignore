@@ -8,6 +8,7 @@
 /dist
 /deps
 /tmp
+/state
 /vcpkg
 /vcpkg_installed
 /.cache
