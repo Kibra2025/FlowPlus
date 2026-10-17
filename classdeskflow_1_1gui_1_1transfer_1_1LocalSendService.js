@@ -1,0 +1,26 @@
+var classdeskflow_1_1gui_1_1transfer_1_1LocalSendService =
+[
+    [ "LocalSendService", "classdeskflow_1_1gui_1_1transfer_1_1LocalSendService.html#a8b624496903129f97612d94d35f189b6", null ],
+    [ "~LocalSendService", "classdeskflow_1_1gui_1_1transfer_1_1LocalSendService.html#a7ba38778273ef6579112ea8b1fd199c4", null ],
+    [ "authorizeIncomingTransfer", "classdeskflow_1_1gui_1_1transfer_1_1LocalSendService.html#a447cc0aa0de5cd28bb79c98c8b64f83b", null ],
+    [ "cancelOutgoingTransfer", "classdeskflow_1_1gui_1_1transfer_1_1LocalSendService.html#aaf40543f8fb3c1e30a241a7152fedcb2", null ],
+    [ "clearIncomingAuthorization", "classdeskflow_1_1gui_1_1transfer_1_1LocalSendService.html#a56473e97d67dd2694bf8eebf6549a7de", null ],
+    [ "deviceDiscovered", "classdeskflow_1_1gui_1_1transfer_1_1LocalSendService.html#ac89010351dec1dbb7ec52c1f570eb2fe", null ],
+    [ "discoveredDevices", "classdeskflow_1_1gui_1_1transfer_1_1LocalSendService.html#a25b71ac982ad8122098382dad6c40c65", null ],
+    [ "downloadDirectory", "classdeskflow_1_1gui_1_1transfer_1_1LocalSendService.html#a515a3f391ba90a1e24577ceb22d17187", null ],
+    [ "fileReceived", "classdeskflow_1_1gui_1_1transfer_1_1LocalSendService.html#a49acef2d7f5330076f065d975db05f35", null ],
+    [ "filesSent", "classdeskflow_1_1gui_1_1transfer_1_1LocalSendService.html#a40a52f74528ba6330c931749138ccff8", null ],
+    [ "incomingTransferFailed", "classdeskflow_1_1gui_1_1transfer_1_1LocalSendService.html#a98c2b00c8e122217e6e7401a673408c7", null ],
+    [ "isRunning", "classdeskflow_1_1gui_1_1transfer_1_1LocalSendService.html#a05a40c46345c839f871731f98edd57bd", null ],
+    [ "sendAnnouncement", "classdeskflow_1_1gui_1_1transfer_1_1LocalSendService.html#a43b0c7fbdb802b5181141ce72d91fdca", null ],
+    [ "sendFiles", "classdeskflow_1_1gui_1_1transfer_1_1LocalSendService.html#a6bd1e18e639d95c870fa1054156d7092", null ],
+    [ "serverPort", "classdeskflow_1_1gui_1_1transfer_1_1LocalSendService.html#a61eede5734d9ca672da2bc006d8e4ec1", null ],
+    [ "setAlias", "classdeskflow_1_1gui_1_1transfer_1_1LocalSendService.html#ae3e92c987f3770f710415586de0cad86", null ],
+    [ "setDownloadDirectory", "classdeskflow_1_1gui_1_1transfer_1_1LocalSendService.html#a41b214809fbefdcc7bbd6712df781124", null ],
+    [ "start", "classdeskflow_1_1gui_1_1transfer_1_1LocalSendService.html#a15d256cffac6fb92a8d84cd9e3eb7528", null ],
+    [ "stop", "classdeskflow_1_1gui_1_1transfer_1_1LocalSendService.html#a32b4b61eb8243373c5298024714c54c9", null ],
+    [ "transferCompleted", "classdeskflow_1_1gui_1_1transfer_1_1LocalSendService.html#ad4b76726d9212ca61ec61b25e42bbc22", null ],
+    [ "transferFailed", "classdeskflow_1_1gui_1_1transfer_1_1LocalSendService.html#aa9f353152a181506e94535b6eddd5aa8", null ],
+    [ "transferProgress", "classdeskflow_1_1gui_1_1transfer_1_1LocalSendService.html#a96653081288b39fde82b3c7a6ebb4f8d", null ],
+    [ "transferStarted", "classdeskflow_1_1gui_1_1transfer_1_1LocalSendService.html#abfc8194c28ff18d2943a1b7e55d91199", null ]
+];

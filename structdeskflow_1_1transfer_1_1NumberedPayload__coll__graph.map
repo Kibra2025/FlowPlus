@@ -1,0 +1,5 @@
+<map id="deskflow::transfer::NumberedPayload" name="deskflow::transfer::NumberedPayload">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,114,142,153"/>
+<area shape="rect" id="Node000002" href="$structdeskflow_1_1transfer_1_1RoutedPayload.html" title=" " alt="" coords="11,5,136,44"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="76,58,76,114,71,113,71,61"/>
+</map>

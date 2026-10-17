@@ -1,0 +1,11 @@
+<map id="src/lib/common/TransferProtocol.h" name="src/lib/common/TransferProtocol.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="133,5,354,30"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,78,95,103"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="212,33,97,75,95,70,210,28"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="118,78,238,103"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="235,29,200,69,197,64,230,32"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="261,78,359,103"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="255,28,291,67,286,66,253,33"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="383,78,448,103"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="272,28,375,71,370,72,271,33"/>
+</map>

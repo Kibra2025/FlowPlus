@@ -1,0 +1,31 @@
+<map id="src/lib/deskflow/ipc/DaemonIpcServer.cpp" name="src/lib/deskflow/ipc/DaemonIpcServer.cpp">
+<area shape="rect" id="Node000001" title=" " alt="" coords="464,5,619,44"/>
+<area shape="rect" id="Node000002" href="$DaemonIpcServer_8h.html" title=" " alt="" coords="151,92,287,117"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="462,46,283,90,281,85,466,43"/>
+<area shape="rect" id="Node000008" href="$Log_8h.html" title=" " alt="" coords="430,92,515,117"/>
+<area shape="poly" id="edge8_Node000001_Node000008" title=" " alt="" coords="527,43,494,82,491,78,523,46"/>
+<area shape="rect" id="Node000012" title=" " alt="" coords="539,92,686,117"/>
+<area shape="poly" id="edge15_Node000001_Node000012" title=" " alt="" coords="560,42,594,81,589,80,558,47"/>
+<area shape="rect" id="Node000013" title=" " alt="" coords="709,92,812,117"/>
+<area shape="poly" id="edge16_Node000001_Node000013" title=" " alt="" coords="595,42,716,86,711,87,594,47"/>
+<area shape="rect" id="Node000003" href="$IpcServer_8h.html" title=" " alt="" coords="68,165,156,189"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="199,119,144,158,141,153,204,116"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="167,237,236,262"/>
+<area shape="poly" id="edge6_Node000002_Node000005" title=" " alt="" coords="220,115,207,223,202,220,215,118"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="318,237,384,262"/>
+<area shape="poly" id="edge7_Node000002_Node000007" title=" " alt="" coords="225,114,244,150,272,188,295,209,321,229,315,228,291,213,268,191,240,152,223,119"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="81,237,144,262"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="114,188,115,223,110,221,111,192"/>
+<area shape="poly" id="edge4_Node000003_Node000005" title=" " alt="" coords="128,187,178,227,173,228,126,192"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="5,237,57,262"/>
+<area shape="poly" id="edge5_Node000003_Node000006" title=" " alt="" coords="102,189,57,229,54,225,96,190"/>
+<area shape="poly" id="edge14_Node000008_Node000007" title=" " alt="" coords="486,115,502,130,515,149,521,170,516,191,492,215,462,231,430,242,399,248,399,243,429,237,460,227,489,211,511,188,516,170,510,152,498,134,485,120"/>
+<area shape="rect" id="Node000009" href="$LogLevel_8h.html" title=" " alt="" coords="282,165,420,189"/>
+<area shape="poly" id="edge9_Node000008_Node000009" title=" " alt="" coords="455,116,385,159,383,154,450,118"/>
+<area shape="rect" id="Node000010" title=" " alt="" coords="576,165,614,189"/>
+<area shape="poly" id="edge12_Node000008_Node000010" title=" " alt="" coords="493,115,565,157,560,157,492,120"/>
+<area shape="rect" id="Node000011" title=" " alt="" coords="444,165,501,189"/>
+<area shape="poly" id="edge13_Node000008_Node000011" title=" " alt="" coords="474,115,475,151,470,148,471,119"/>
+<area shape="poly" id="edge10_Node000009_Node000005" title=" " alt="" coords="329,189,241,233,239,228,324,190"/>
+<area shape="poly" id="edge11_Node000009_Node000007" title=" " alt="" coords="353,188,353,223,349,220,349,192"/>
+</map>

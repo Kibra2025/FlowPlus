@@ -1,0 +1,157 @@
+/*
+ @licstart  The following is the entire license notice for the JavaScript code in this file.
+
+ The MIT License (MIT)
+
+ Copyright (C) 1997-2020 by Dimitri van Heesch
+
+ Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+ and associated documentation files (the "Software"), to deal in the Software without restriction,
+ including without limitation the rights to use, copy, modify, merge, publish, distribute,
+ sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+
+ The above copyright notice and this permission notice shall be included in all copies or
+ substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
+ BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+ DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+ @licend  The above is the entire license notice for the JavaScript code in this file
+*/
+var NAVTREE =
+[
+  [ "FlowPlus", "index.html", [
+    [ "Building FlowPlus", "md_docs_2dev_2build.html", [
+      [ "Configuration", "md_docs_2dev_2build.html#autotoc_md1", [
+        [ "Windows Configuration", "md_docs_2dev_2build.html#autotoc_md2", [
+          [ "Windows and Qt", "md_docs_2dev_2build.html#autotoc_md3", [
+            [ "System Qt", "md_docs_2dev_2build.html#autotoc_md4", null ],
+            [ "vcpkg managed Qt", "md_docs_2dev_2build.html#autotoc_md5", null ]
+          ] ]
+        ] ],
+        [ "macOS codesign", "md_docs_2dev_2build.html#autotoc_md6", null ]
+      ] ],
+      [ "Build", "md_docs_2dev_2build.html#autotoc_md7", null ],
+      [ "Install", "md_docs_2dev_2build.html#autotoc_md8", null ],
+      [ "Making FlowPlus packages", "md_docs_2dev_2build.html#autotoc_md9", null ]
+    ] ],
+    [ "Contributing to FlowPlus", "contributing_guide.html", null ],
+    [ "Protocol Reference", "protocol_reference.html", [
+      [ "Protocol Overview", "protocol_reference.html#autotoc_md12", [
+        [ "Key Implementation Files", "protocol_reference.html#autotoc_md13", null ]
+      ] ],
+      [ "Protocol Architecture", "protocol_reference.html#autotoc_md14", null ],
+      [ "Protocol State Machine", "protocol_reference.html#autotoc_md15", [
+        [ "State Descriptions", "protocol_reference.html#autotoc_md16", null ]
+      ] ],
+      [ "Message Categories", "protocol_reference.html#autotoc_md17", null ],
+      [ "Message Reference Table", "protocol_reference.html#autotoc_md18", null ],
+      [ "Typical Control Flow", "protocol_reference.html#autotoc_md19", null ],
+      [ "Protocol Constraints", "protocol_reference.html#autotoc_md20", [
+        [ "Message and Data Size Limits", "protocol_reference.html#autotoc_md21", null ],
+        [ "TLS Handshake and Security (Protocol v1.4+)", "protocol_reference.html#autotoc_md22", null ],
+        [ "Key Code and Modifier Mapping", "protocol_reference.html#autotoc_md23", null ]
+      ] ],
+      [ "Timing and Synchronization", "protocol_reference.html#autotoc_md24", [
+        [ "Keep-Alive Mechanism (Protocol v1.3+)", "protocol_reference.html#autotoc_md25", null ],
+        [ "Synchronization on Screen Entry", "protocol_reference.html#autotoc_md26", null ],
+        [ "Handshake Timeout", "protocol_reference.html#autotoc_md27", null ]
+      ] ],
+      [ "Version Compatibility", "protocol_reference.html#autotoc_md28", [
+        [ "Version Migration Guide", "protocol_reference.html#autotoc_md29", null ]
+      ] ],
+      [ "Implementation Examples", "protocol_reference.html#autotoc_md30", [
+        [ "Connection Lifecycle", "protocol_reference.html#autotoc_md31", null ],
+        [ "Message Handling", "protocol_reference.html#autotoc_md32", null ],
+        [ "Complete Message Exchange Sequence", "protocol_reference.html#autotoc_md33", null ]
+      ] ],
+      [ "Debugging and Troubleshooting", "protocol_reference.html#autotoc_md34", [
+        [ "Common Issues", "protocol_reference.html#autotoc_md35", null ],
+        [ "Debug Tools", "protocol_reference.html#autotoc_md36", null ]
+      ] ],
+      [ "Platform-Specific Implementations", "protocol_reference.html#autotoc_md37", null ],
+      [ "Implementation Checklist", "protocol_reference.html#autotoc_md38", [
+        [ "Basic Client Implementation", "protocol_reference.html#autotoc_md39", null ],
+        [ "Advanced Features", "protocol_reference.html#autotoc_md40", null ]
+      ] ],
+      [ "Reference Implementation", "protocol_reference.html#autotoc_md41", null ],
+      [ "Contributing", "protocol_reference.html#autotoc_md42", null ],
+      [ "Support and Resources", "protocol_reference.html#autotoc_md43", null ]
+    ] ],
+    [ "Deprecated List", "deprecated.html", null ],
+    [ "Topics", "topics.html", "topics" ],
+    [ "Namespaces", "namespaces.html", [
+      [ "Namespace List", "namespaces.html", "namespaces_dup" ],
+      [ "Namespace Members", "namespacemembers.html", [
+        [ "All", "namespacemembers.html", null ],
+        [ "Functions", "namespacemembers_func.html", null ],
+        [ "Variables", "namespacemembers_vars.html", null ],
+        [ "Typedefs", "namespacemembers_type.html", null ],
+        [ "Enumerations", "namespacemembers_enum.html", null ]
+      ] ]
+    ] ],
+    [ "Classes", "annotated.html", [
+      [ "Class List", "annotated.html", "annotated_dup" ],
+      [ "Class Index", "classes.html", null ],
+      [ "Class Hierarchy", "hierarchy.html", "hierarchy" ],
+      [ "Class Members", "functions.html", [
+        [ "All", "functions.html", "functions_dup" ],
+        [ "Functions", "functions_func.html", "functions_func" ],
+        [ "Variables", "functions_vars.html", "functions_vars" ],
+        [ "Typedefs", "functions_type.html", null ],
+        [ "Enumerations", "functions_enum.html", null ],
+        [ "Enumerator", "functions_eval.html", null ],
+        [ "Related Symbols", "functions_rela.html", null ]
+      ] ]
+    ] ],
+    [ "Files", "files.html", [
+      [ "File List", "files.html", "files_dup" ],
+      [ "File Members", "globals.html", [
+        [ "All", "globals.html", "globals_dup" ],
+        [ "Functions", "globals_func.html", null ],
+        [ "Variables", "globals_vars.html", "globals_vars" ],
+        [ "Typedefs", "globals_type.html", null ],
+        [ "Enumerations", "globals_enum.html", null ],
+        [ "Enumerator", "globals_eval.html", null ],
+        [ "Macros", "globals_defs.html", null ]
+      ] ]
+    ] ]
+  ] ]
+];
+
+var NAVTREEINDEX =
+[
+"AboutDialog_8cpp.html",
+"DaemonIpcServer_8h.html",
+"KeyTypes_8h.html#a2babe1d04369762cbc46be251a076742",
+"MSWindowsDebugOutputter_8h_source.html",
+"OSXEventQueueBuffer_8cpp.html",
+"SettingsDialog_8h_source.html",
+"classApp.html#aab3f6534616a1a83c021e0d78f7469c0",
+"classArchNetworkWinsock.html#a08c9ea08771aa19863036742929ad264",
+"classClientProxy1__0.html#a9fa2709b05fbd08eb4bb8f9f505758e3",
+"classHotkey.html#aa4108af4e38e8c787f4b87d8a433b9cc",
+"classIOClosedException.html",
+"classInputFilter_1_1ScreenConnectedCondition.html",
+"classMSWindowsKeyState.html#a648bb000e9297e45dd9d857d02d1d089",
+"classOSXScreen.html#a6f36f73c633f001195c1e676890bc00b",
+"classScreenConfig.html#aa614b21714c5878160804fb6375ea814ab6755d218d5f4e1cef9cce9cc39aeda9",
+"classSettings.html#a37be043c4fa4b592b9e334520bef9814",
+"classThread.html#a01061ad89e5cd91c126e0e24ba6085cb",
+"classXWindowsScreen.html#a848f24cad32ea9dbc57e45373bae0eb5",
+"classdeskflow_1_1IStream.html#ae2e80b2768af2f745aeadcbb12ddffaf",
+"classdeskflow_1_1Screen.html#aed3933d3ae84f5028976dcd540d6b9ac",
+"classdeskflow_1_1gui_1_1transfer_1_1DragDropManager.html#a48ced8820b1e373f603dc0e816fde109",
+"classdeskflow_1_1server_1_1ConfigReadContext.html#a7a95c3c67d26cb33b744c205e9aaec04",
+"functions_m.html",
+"namespacedeskflow.html#a34787a880fd439e02383f336665d7bc2ab693bad8d2758377eff2d73976c0c121",
+"structFingerprint.html#ac4467dd44454e8be054a8228a5288903"
+];
+
+const SYNCONMSG = 'click to disable panel synchronization';
+const SYNCOFFMSG = 'click to enable panel synchronization';
+const LISTOFALLMEMBERS = 'List of all members';

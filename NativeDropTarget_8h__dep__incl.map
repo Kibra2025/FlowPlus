@@ -1,0 +1,15 @@
+<map id="src/lib/gui/transfer/NativeDropTarget.h" name="src/lib/gui/transfer/NativeDropTarget.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="387,5,524,44"/>
+<area shape="rect" id="Node000002" href="$DragDropManager_8h.html" title=" " alt="" coords="120,92,263,131"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="380,50,251,94,249,89,385,48"/>
+<area shape="rect" id="Node000005" href="$NativeDropTarget_8cpp.html" title=" " alt="" coords="287,92,437,131"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="426,53,384,94,381,89,421,56"/>
+<area shape="rect" id="Node000006" href="$NativeDropTargetMac_8mm.html" title=" " alt="" coords="462,92,639,131"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="489,52,532,92,527,91,487,57"/>
+<area shape="rect" id="Node000007" href="$NativeDropTargetWindows_8cpp.html" title=" " alt="" coords="664,92,869,131"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="539,46,700,91,695,92,538,51"/>
+<area shape="rect" id="Node000003" href="$MainWindow_8cpp.html" title=" " alt="" coords="5,186,186,210"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="161,141,110,187,107,183,156,142"/>
+<area shape="rect" id="Node000004" href="$DragDropManager_8cpp.html" title=" " alt="" coords="209,179,366,217"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="225,139,269,178,264,178,223,144"/>
+</map>

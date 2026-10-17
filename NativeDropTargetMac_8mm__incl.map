@@ -1,0 +1,23 @@
+<map id="src/lib/gui/transfer/NativeDropTargetMac.mm" name="src/lib/gui/transfer/NativeDropTargetMac.mm">
+<area shape="rect" id="Node000001" title=" " alt="" coords="432,5,609,44"/>
+<area shape="rect" id="Node000002" href="$NativeDropTarget_8h.html" title=" " alt="" coords="72,99,204,124"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="432,47,216,95,203,97,201,92,215,89,435,42"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="228,99,339,124"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="471,44,331,96,330,91,465,46"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="364,99,438,124"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="496,44,431,92,428,87,492,46"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="462,99,579,124"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="522,43,523,85,518,82,519,47"/>
+<area shape="rect" id="Node000009" title=" " alt="" coords="603,99,652,124"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="545,42,604,90,598,89,544,47"/>
+<area shape="rect" id="Node000010" title=" " alt="" coords="675,92,828,131"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="572,42,689,86,684,86,572,47"/>
+<area shape="rect" id="Node000011" title=" " alt="" coords="851,99,964,124"/>
+<area shape="poly" id="edge10_Node000001_Node000011" title=" " alt="" coords="610,40,840,89,853,95,848,95,839,95,610,46"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="5,179,71,203"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="126,125,66,171,63,167,121,123"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="95,179,181,203"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="140,122,140,164,136,162,136,126"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="205,179,282,203"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="154,122,218,169,213,170,153,127"/>
+</map>

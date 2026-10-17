@@ -1,0 +1,9 @@
+<map id="src/lib/gui/transfer/NativeDropTarget.h" name="src/lib/gui/transfer/NativeDropTarget.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="70,5,206,44"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,92,71,117"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="116,44,66,85,63,80,111,45"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="95,92,181,117"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="140,43,140,77,136,75,136,47"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="205,92,282,117"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="164,42,218,83,213,83,163,47"/>
+</map>

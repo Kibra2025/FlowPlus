@@ -1,0 +1,5 @@
+<map id="deskflow::gui::transfer::DragOverlayWidget" name="deskflow::gui::transfer::DragOverlayWidget">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,78,155,117"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="44,5,116,30"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="82,44,83,78,77,77,78,48"/>
+</map>

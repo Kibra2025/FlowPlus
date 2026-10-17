@@ -1,0 +1,27 @@
+var namespacedeskflow_1_1gui_1_1transfer =
+[
+    [ "DragDropManager", "classdeskflow_1_1gui_1_1transfer_1_1DragDropManager.html", "classdeskflow_1_1gui_1_1transfer_1_1DragDropManager" ],
+    [ "DragOverlayWidget", "classdeskflow_1_1gui_1_1transfer_1_1DragOverlayWidget.html", "classdeskflow_1_1gui_1_1transfer_1_1DragOverlayWidget" ],
+    [ "DragSourceState", "classdeskflow_1_1gui_1_1transfer_1_1DragSourceState.html", "classdeskflow_1_1gui_1_1transfer_1_1DragSourceState" ],
+    [ "EdgeDropSensor", "classdeskflow_1_1gui_1_1transfer_1_1EdgeDropSensor.html", "classdeskflow_1_1gui_1_1transfer_1_1EdgeDropSensor" ],
+    [ "LocalSendDevice", "structdeskflow_1_1gui_1_1transfer_1_1LocalSendDevice.html", "structdeskflow_1_1gui_1_1transfer_1_1LocalSendDevice" ],
+    [ "LocalSendService", "classdeskflow_1_1gui_1_1transfer_1_1LocalSendService.html", "classdeskflow_1_1gui_1_1transfer_1_1LocalSendService" ],
+    [ "NativeDropPlacement", "structdeskflow_1_1gui_1_1transfer_1_1NativeDropPlacement.html", "structdeskflow_1_1gui_1_1transfer_1_1NativeDropPlacement" ],
+    [ "NativeDropTarget", "structdeskflow_1_1gui_1_1transfer_1_1NativeDropTarget.html", "structdeskflow_1_1gui_1_1transfer_1_1NativeDropTarget" ],
+    [ "availableTransferBytes", "namespacedeskflow_1_1gui_1_1transfer.html#afc0e8370bf9013b24c812ad57b5e91bc", null ],
+    [ "captureNativeDropTarget", "namespacedeskflow_1_1gui_1_1transfer.html#ab91ea7486bf8b87f6989af798b1174a8", null ],
+    [ "isPortableFileName", "namespacedeskflow_1_1gui_1_1transfer.html#a8c73aa581e8153cea56d29893a85fd89", null ],
+    [ "isValidTransferId", "namespacedeskflow_1_1gui_1_1transfer.html#adf52fdd3e28cb4da783554a15febe83a", null ],
+    [ "placeReceivedFiles", "namespacedeskflow_1_1gui_1_1transfer.html#adc10bacf6d2e1ee0b0adc8ce511cca87", null ],
+    [ "pollNativeDragSource", "namespacedeskflow_1_1gui_1_1transfer.html#aa9fe73d1d921a91785ab053fc0f37e5f", null ],
+    [ "prepareTransferDirectory", "namespacedeskflow_1_1gui_1_1transfer.html#a148cac20aa1dc24dfcd2d59ebc378aac", null ],
+    [ "transferProgressPercent", "namespacedeskflow_1_1gui_1_1transfer.html#a1f855c7b203542c587d62350e93e8154", null ],
+    [ "uniqueTransferDestination", "namespacedeskflow_1_1gui_1_1transfer.html#a1501e7e4b06f1c5718fc1d88ca46b046", null ],
+    [ "validateTransferManifest", "namespacedeskflow_1_1gui_1_1transfer.html#ae44add5268bb5f9db1135e4fe0183705", null ],
+    [ "kLocalSendDefaultPort", "namespacedeskflow_1_1gui_1_1transfer.html#a75604a7af00761458f3ceca60ba2d571", null ],
+    [ "kLocalSendMulticastGroup", "namespacedeskflow_1_1gui_1_1transfer.html#a81653535b1996b5f94e9858bb565aa32", null ],
+    [ "kLocalSendProtocolVersion", "namespacedeskflow_1_1gui_1_1transfer.html#ab56227b35cf112c75c2912c7508564cd", null ],
+    [ "kMaxFileNameLength", "namespacedeskflow_1_1gui_1_1transfer.html#a533a051e34cffc4e0928544e6547fc9a", null ],
+    [ "kMaxTransferBytes", "namespacedeskflow_1_1gui_1_1transfer.html#a049f7f68192100feff6a71419de1b4a4", null ],
+    [ "kMaxTransferFiles", "namespacedeskflow_1_1gui_1_1transfer.html#a559c1f83d9f4aa575298a93f03ead706", null ]
+];

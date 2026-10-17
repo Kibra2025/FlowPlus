@@ -1,0 +1,5 @@
+<map id="deskflow::gui::AccessibilitySetupDialog" name="deskflow::gui::AccessibilitySetupDialog">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,78,185,117"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="61,5,129,30"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="97,44,97,78,93,76,93,48"/>
+</map>

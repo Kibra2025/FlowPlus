@@ -1,0 +1,11 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="Node000000" title=" " alt="" coords="5,83,78,107"/>
+<area shape="rect" id="Node000001" href="$classLogWidget.html" title=" " alt="" coords="159,5,242,30"/>
+<area shape="poly" id="edge161_Node000000_Node000001" title=" " alt="" coords="71,72,124,41,160,28,156,32,127,45,75,76"/>
+<area shape="rect" id="Node000002" href="$classSearchWidget.html" title=" " alt="" coords="149,55,252,79"/>
+<area shape="poly" id="edge162_Node000000_Node000002" title=" " alt="" coords="92,84,150,74,146,78,94,88"/>
+<area shape="rect" id="Node000003" href="$classdeskflow_1_1gui_1_1transfer_1_1DragOverlayWidget.html" title=" " alt="" coords="126,104,275,142"/>
+<area shape="poly" id="edge163_Node000000_Node000003" title=" " alt="" coords="93,101,128,109,123,111,94,107"/>
+<area shape="rect" id="Node000004" href="$classdeskflow_1_1gui_1_1transfer_1_1EdgeDropSensor.html" title=" " alt="" coords="126,166,275,205"/>
+<area shape="poly" id="edge164_Node000000_Node000004" title=" " alt="" coords="71,114,127,151,152,166,147,166,124,156,70,119"/>
+</map>

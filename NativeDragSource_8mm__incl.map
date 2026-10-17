@@ -1,0 +1,17 @@
+<map id="src/lib/gui/transfer/NativeDragSource.mm" name="src/lib/gui/transfer/NativeDragSource.mm">
+<area shape="rect" id="Node000001" title=" " alt="" coords="249,5,406,44"/>
+<area shape="rect" id="Node000002" href="$NativeDragSource_8h.html" title=" " alt="" coords="69,92,207,117"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="280,46,182,88,179,83,284,43"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="232,92,306,117"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="315,43,289,81,285,78,311,46"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="330,92,443,117"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="342,42,371,80,366,79,341,47"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="467,92,663,117"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="385,42,517,86,512,87,385,47"/>
+<area shape="rect" id="Node000003" href="$DragSourceState_8h.html" title=" " alt="" coords="5,165,138,189"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="125,119,95,155,91,152,129,115"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="162,165,248,189"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="150,115,186,153,181,154,149,120"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="35,237,108,262"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="73,188,74,223,69,221,70,192"/>
+</map>
